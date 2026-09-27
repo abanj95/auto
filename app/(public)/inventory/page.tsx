@@ -63,7 +63,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
 
           {vehicles.length > 0 ? (
             <>
-              <VehicleGrid vehicles={vehicles} priorityCount={2} />
+              <VehicleGrid vehicles={vehicles} eagerCount={2} />
               <Pagination filters={filters} page={filters.page} totalPages={totalPages} />
             </>
           ) : (

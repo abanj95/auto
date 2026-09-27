@@ -80,8 +80,7 @@ export function VehicleGallery({
                 alt={i === 0 ? alt : `${alt} — photo ${i + 1}`}
                 fill
                 sizes={MAIN_SIZES}
-                priority={i === 0}
-                loading={i === 0 ? undefined : "lazy"}
+                preload={i === 0} // Main image (LCP); the rest lazy-load by default.
                 className={cn("object-cover", sold && "grayscale-[60%]")}
               />
             </button>

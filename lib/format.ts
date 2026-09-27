@@ -15,8 +15,13 @@ export function formatMileage(mileage: number | null) {
   return mileage == null ? null : `${num.format(mileage)} mi`;
 }
 
-export function vehicleTitle(v: { year: number; make: string; model: string }) {
-  return `${v.year} ${v.make} ${v.model}`;
+/** "2019 Toyota Camry". Drafts may be missing parts; listed cars never are (DB check). */
+export function vehicleTitle(v: {
+  year: number | null;
+  make: string | null;
+  model: string | null;
+}) {
+  return [v.year, v.make, v.model].filter(Boolean).join(" ") || "Untitled vehicle";
 }
 
 export const BODY_TYPE_LABELS: Record<Enums<"vehicle_body_type">, string> = {
@@ -58,6 +63,16 @@ export const TITLE_STATUS_LABELS: Record<Enums<"vehicle_title_status">, string> 
   salvage: "Salvage",
   other: "Other",
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "Listed 12 days" / "Created today" for the staff vehicle list. */
+export function listingAge(publishedAt: string | null, createdAt: string) {
+  const since = new Date(publishedAt ?? createdAt).getTime();
+  const days = Math.max(0, Math.floor((Date.now() - since) / DAY_MS));
+  const span = days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"}`;
+  return publishedAt ? `Listed ${span}` : `Created ${days === 0 ? "today" : `${span} ago`}`;
+}
 
 /** "(215) 618-2789" -> "+12156182789" for tel:/sms: links. */
 export function phoneHref(phone: string) {

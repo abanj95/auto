@@ -20,9 +20,10 @@ A simple used-car dealership website for McRowin Auto, replacing an old WordPres
 - pnpm; ESLint + Prettier; Playwright for smoke tests
 - Deploy target: Vercel
 
-Also installed for later stages: `@zxing/browser` + `@zxing/library` (VIN barcode scan),
-`browser-image-compression` (photo uploads), `@dnd-kit/*` (photo reordering), `sonner` (toasts),
-`@vercel/analytics`, `@vercel/speed-insights`, `server-only`, `tsx`, `supabase` CLI.
+Also used: `browser-image-compression` (photo uploads), `@dnd-kit/*` (photo reordering),
+`sonner` (toasts), `yet-another-react-lightbox` (public gallery), `@vercel/analytics`,
+`@vercel/speed-insights`, `server-only`, `tsx`, `supabase` CLI. No VIN barcode scanning (by
+decision) — VINs are typed.
 
 ## Folder layout
 
@@ -37,12 +38,17 @@ app/
     auth/signout/     Signs out; used when a profile is missing/inactive
     (auth)/           Public: login, forgot-password; reset-password (needs session)
     (app)/            Signed-in staff: top bar + bottom tabs / sidebar
+      vehicles/       List (status chips, search), new, [id] edit; actions.ts = all vehicle/photo server actions
+    api/vin/[vin]/    Staff-only NHTSA vPIC lookup (prefill)
       (admin-only)/   Admin-only pages (settings, users) — default home for new pages
 components/
   ui/                 shadcn/ui components (generated; edit sparingly)
   public/             Buyer-site components (cards, filters, gallery, share, action bar)
   staff/              Staff-area components
+    vehicle-form/     Posting form: photo-manager (upload queue, dnd reorder), photo-upload (compress + XHR upload)
 lib/
+  nhtsa.ts            VIN decode + mapping to our enums (server only)
+  vehicle-options.ts  Feature checklist, color chips, description template
   public-data.ts      ALL public-site queries (cookie-free anon client) + photoUrl()
   format.ts           Price/mileage formatting, enum labels, tel:/sms: hrefs
   auth.ts             getStaff(), requireStaff(), requireAdmin() — server only
@@ -79,6 +85,26 @@ tests/e2e/            Playwright smoke tests
   Photo cards and galleries are 4:3 `object-cover`.
 - `site_settings.hours` format: `[{ "days": "Mon–Fri", "hours": "9:00 AM – 6:00 PM" }]`.
 - Hero image: `public/hero.jpg` (CC0 placeholder, see `public/CREDITS.md`).
+
+## Staff posting tool (Stage 4)
+
+- VINs are typed (no barcode scanning, no check-digit validation — by decision). `normalizeVin`
+  uppercases and maps O/Q→0, I→1. NHTSA prefill only fills empty fields.
+- Drafts may lack details; the DB check `vehicles_listed_requires_details` requires VIN, year,
+  make, model, price, mileage once not a draft. "≥1 photo to publish" is enforced in the server
+  actions. Only admins can change `featured` (DB trigger + action).
+- Photos: compressed in the browser (1920px, WebP; JPEG where the browser can't encode WebP,
+  e.g. Safari). Canvas re-encode strips EXIF/GPS. Uploaded by XHR with the user's session (for
+  progress), 3 at a time, then recorded via `addPhoto`. Max 40. Worker script is self-hosted at
+  `public/vendor/browser-image-compression-2.0.2.js` — update it with the package.
+- New vehicle: the draft row is created on the first photo or first save. The URL stays
+  `/admin/vehicles/new` until an explicit Save/Publish: server actions refresh the _current URL_,
+  and switching to `[id]` mid-edit would remount the form and drop uploads.
+- Autosave every 10s for drafts only; listed cars use "Save changes" (never auto-publish edits).
+- Every vehicle/photo change calls `revalidatePath` for `/`, `/inventory`, `/inventory/[slug]`.
+- Deleting a vehicle removes its storage files first (admin only).
+- E2E tests create/delete their own poster user and vehicles; they need `SUPABASE_SECRET_KEY`.
+- Next 16: use `preload` / `loading="eager"` on images, not the deprecated `priority`.
 
 ## Theme
 

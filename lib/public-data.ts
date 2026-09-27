@@ -104,13 +104,14 @@ export async function getNewestVehicles(limit = 6) {
 /** Up to 4 available cars with the same body type or make. */
 export async function getSimilarVehicles(v: {
   id: string;
-  make: string;
+  make: string | null;
   body_type: Enums<"vehicle_body_type"> | null;
 }) {
   const quote = (s: string) => `"${s.replace(/["\\]/g, "\\$&")}"`;
-  const or = [`make.eq.${quote(v.make)}`, v.body_type && `body_type.eq.${v.body_type}`]
+  const or = [v.make && `make.eq.${quote(v.make)}`, v.body_type && `body_type.eq.${v.body_type}`]
     .filter(Boolean)
     .join(",");
+  if (!or) return [];
   const { data, error } = await cardQuery()
     .eq("status", "available")
     .neq("id", v.id)
@@ -175,6 +176,8 @@ export const getInventoryFacets = cache(async () => {
   const years = new Set<number>();
   const bodyCounts: Partial<Record<Enums<"vehicle_body_type">, number>> = {};
   for (const v of data) {
+    // Listed cars always have these (DB check); the guard is for the types.
+    if (!v.make || !v.model || !v.year) continue;
     const models = (modelsByMake[v.make] ??= []);
     if (!models.includes(v.model)) models.push(v.model);
     years.add(v.year);

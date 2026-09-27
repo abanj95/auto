@@ -12,10 +12,11 @@ export const CARD_IMAGE_SIZES =
 
 export function VehicleCard({
   vehicle: v,
-  priority,
+  eager,
 }: {
   vehicle: VehicleCardData;
-  priority?: boolean;
+  /** Load immediately (cards that may be the largest image on screen). */
+  eager?: boolean;
 }) {
   const details = [formatMileage(v.mileage), v.drivetrain && DRIVETRAIN_LABELS[v.drivetrain]]
     .filter(Boolean)
@@ -33,7 +34,7 @@ export function VehicleCard({
             alt={`${vehicleTitle(v)} ${v.trim ?? ""}`.trim()}
             fill
             sizes={CARD_IMAGE_SIZES}
-            priority={priority}
+            loading={eager ? "eager" : undefined}
             className="object-cover transition duration-300 group-hover:scale-[1.02]"
           />
         ) : (

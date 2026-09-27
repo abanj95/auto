@@ -44,7 +44,7 @@ export default async function HomePage() {
             src={heroImage}
             alt=""
             fill
-            priority
+            preload
             placeholder="blur"
             sizes="100vw"
             className="-z-10 object-cover object-[70%_center]"
@@ -74,7 +74,7 @@ export default async function HomePage() {
         {featured.length > 0 && (
           <section>
             <SectionHeading title="Featured vehicles" href="/inventory" />
-            <VehicleGrid vehicles={featured} />
+            <VehicleGrid vehicles={featured} eagerCount={1} />
           </section>
         )}
 

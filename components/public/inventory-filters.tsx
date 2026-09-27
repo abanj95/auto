@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useId, useState } from "react";
 
 import { CleanGetForm } from "@/components/public/clean-get-form";
-import { NativeSelect } from "@/components/public/native-select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,

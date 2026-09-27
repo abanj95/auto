@@ -36,7 +36,7 @@ test.describe("poster", () => {
   });
 
   test("a poster visiting /admin/settings is redirected to /admin", async ({ page }) => {
-    await page.goto("/admin/login");
+    await page.goto("/admin/login", { waitUntil: "networkidle" }); // Type only after hydration.
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();

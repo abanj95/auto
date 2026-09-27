@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { NativeSelect } from "@/components/public/native-select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { SORTS, type Sort } from "@/lib/validation/inventory";
 
 export function SortSelect({ value }: { value: Sort }) {

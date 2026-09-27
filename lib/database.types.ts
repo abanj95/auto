@@ -135,9 +135,9 @@ export type Database = {
           fuel_type: Database["public"]["Enums"]["vehicle_fuel_type"] | null;
           id: string;
           interior_color: string | null;
-          make: string;
+          make: string | null;
           mileage: number | null;
-          model: string;
+          model: string | null;
           price: number | null;
           published_at: string | null;
           slug: string;
@@ -149,7 +149,7 @@ export type Database = {
           trim: string | null;
           updated_at: string;
           vin: string | null;
-          year: number;
+          year: number | null;
         };
         Insert: {
           body_type?: Database["public"]["Enums"]["vehicle_body_type"] | null;
@@ -164,12 +164,12 @@ export type Database = {
           fuel_type?: Database["public"]["Enums"]["vehicle_fuel_type"] | null;
           id?: string;
           interior_color?: string | null;
-          make: string;
+          make?: string | null;
           mileage?: number | null;
-          model: string;
+          model?: string | null;
           price?: number | null;
           published_at?: string | null;
-          slug: string;
+          slug?: string;
           sold_at?: string | null;
           status?: Database["public"]["Enums"]["vehicle_status"];
           stock_no?: string;
@@ -178,7 +178,7 @@ export type Database = {
           trim?: string | null;
           updated_at?: string;
           vin?: string | null;
-          year: number;
+          year?: number | null;
         };
         Update: {
           body_type?: Database["public"]["Enums"]["vehicle_body_type"] | null;
@@ -193,9 +193,9 @@ export type Database = {
           fuel_type?: Database["public"]["Enums"]["vehicle_fuel_type"] | null;
           id?: string;
           interior_color?: string | null;
-          make?: string;
+          make?: string | null;
           mileage?: number | null;
-          model?: string;
+          model?: string | null;
           price?: number | null;
           published_at?: string | null;
           slug?: string;
@@ -207,7 +207,7 @@ export type Database = {
           trim?: string | null;
           updated_at?: string;
           vin?: string | null;
-          year?: number;
+          year?: number | null;
         };
         Relationships: [
           {
