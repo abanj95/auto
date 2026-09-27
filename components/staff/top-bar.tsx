@@ -11,7 +11,7 @@ export function TopBar({ name }: { name: string }) {
         <span className="text-brand">McRowin</span> Auto
       </Link>
       <span className="ml-auto truncate text-sm text-muted-foreground">{name}</span>
-      <form action={signOut}>
+      <form action={signOut} suppressHydrationWarning>
         <Button type="submit" variant="ghost" size="sm" className="h-10">
           <LogOut aria-hidden />
           <span className="sr-only sm:not-sr-only">Sign out</span>

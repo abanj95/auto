@@ -4,6 +4,8 @@ import { cn } from "cn";
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <input
+      // Chrome on iOS adds autofill attributes (__gcruniqueid) before hydration.
+      suppressHydrationWarning
       type={type}
       data-slot="input"
       className={cn(

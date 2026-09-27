@@ -30,7 +30,8 @@ Also installed for later stages: `@zxing/browser` + `@zxing/library` (VIN barcod
 app/
   layout.tsx          Root layout (Inter font, metadata)
   globals.css         Theme tokens (brand color, grays)
-  (public)/           Buyer site
+  (public)/           Buyer site: home, inventory, inventory/[slug], about, contact
+  not-found.tsx       Site-wide 404 (with public header/footer)
   (staff)/admin/      Staff area (noindex; toast container)
     auth/confirm/     Email-link callback (magic link, password reset)
     auth/signout/     Signs out; used when a profile is missing/inactive
@@ -39,9 +40,11 @@ app/
       (admin-only)/   Admin-only pages (settings, users) — default home for new pages
 components/
   ui/                 shadcn/ui components (generated; edit sparingly)
-  public/             Buyer-site components
+  public/             Buyer-site components (cards, filters, gallery, share, action bar)
   staff/              Staff-area components
 lib/
+  public-data.ts      ALL public-site queries (cookie-free anon client) + photoUrl()
+  format.ts           Price/mileage formatting, enum labels, tel:/sms: hrefs
   auth.ts             getStaff(), requireStaff(), requireAdmin() — server only
   auth-paths.ts       Staff route constants, public-path list, safe redirect helper
   database.types.ts   Generated DB types (`pnpm db:types`) — do not edit by hand
@@ -49,6 +52,7 @@ lib/
     server.ts         Server Components / Server Actions / Route Handlers
     client.ts         Client Components (browser)
     middleware.ts     Session refresh, called from proxy.ts
+    public.ts         Cookie-free anon client for public pages (cacheable)
   validation/         Zod schemas (shared by client and server)
   utils.ts            cn() helper
 proxy.ts              Next 16 "middleware" — refreshes session; signed-out /admin -> login
@@ -61,6 +65,20 @@ supabase/
   config.toml         Supabase CLI config
 tests/e2e/            Playwright smoke tests
 ```
+
+## Public site
+
+- Public pages read data only through `lib/public-data.ts` (anon client, never cookies), so
+  they see exactly what a visitor sees and can be cached. Home/about/contact and vehicle pages
+  use `revalidate = 300`; `/inventory` is dynamic (filters in the URL).
+- Staff edits (later stages) must call `revalidatePath` for `/`, `/inventory/[slug]` etc.
+- Inventory filters are plain GET forms with native `<select>`s; every filter lives in the
+  URL (`make`, `model`, `year_min/max`, `price_min/max`, `mileage_max`, `body`, `drivetrain`,
+  `fuel`, `sort`, `page`), validated by `lib/validation/inventory.ts` (bad values ignored).
+- Images: `next/image` with the Supabase bucket in `images.remotePatterns`; always pass `sizes`.
+  Photo cards and galleries are 4:3 `object-cover`.
+- `site_settings.hours` format: `[{ "days": "Mon–Fri", "hours": "9:00 AM – 6:00 PM" }]`.
+- Hero image: `public/hero.jpg` (CC0 placeholder, see `public/CREDITS.md`).
 
 ## Theme
 

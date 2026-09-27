@@ -11,6 +11,10 @@ export const metadata: Metadata = {
     template: "%s | McRowin Auto",
   },
   description: "Quality used cars from McRowin Auto.",
+  // Phone numbers are already real tel:/sms: links. Stop mobile browsers from
+  // rewriting them (and other text) into their own links, which changes the
+  // HTML before React hydrates it.
+  formatDetection: { telephone: false, address: false, email: false, date: false },
 };
 
 export const viewport: Viewport = {
@@ -21,7 +25,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    // suppressHydrationWarning: Chrome on iOS adds __gcrremoteframetoken to <html>
+    // before React loads. Only affects this element's own attributes.
+    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="flex min-h-full flex-col font-sans">{children}</body>
     </html>
   );

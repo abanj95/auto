@@ -38,6 +38,7 @@ export type Database = {
           address: string | null;
           city: string | null;
           dealership_name: string;
+          email: string | null;
           facebook_url: string | null;
           google_maps_url: string | null;
           hours: Json;
@@ -53,6 +54,7 @@ export type Database = {
           address?: string | null;
           city?: string | null;
           dealership_name?: string;
+          email?: string | null;
           facebook_url?: string | null;
           google_maps_url?: string | null;
           hours?: Json;
@@ -68,6 +70,7 @@ export type Database = {
           address?: string | null;
           city?: string | null;
           dealership_name?: string;
+          email?: string | null;
           facebook_url?: string | null;
           google_maps_url?: string | null;
           hours?: Json;

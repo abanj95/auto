@@ -98,7 +98,12 @@ function PasswordForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-4"
+        noValidate
+        suppressHydrationWarning // Chrome on iOS adds autofill attributes.
+      >
         <EmailField control={form.control} />
         <FormField
           control={form.control}
@@ -168,7 +173,12 @@ function MagicLinkForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-4"
+        noValidate
+        suppressHydrationWarning // Chrome on iOS adds autofill attributes.
+      >
         <EmailField control={form.control} />
         <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
           {pending ? "Sending…" : "Email me a sign-in link"}

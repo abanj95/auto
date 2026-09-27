@@ -39,7 +39,12 @@ export function ResetPasswordForm() {
     <div className="space-y-4">
       {error && <FormAlert kind="error">{error}</FormAlert>}
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+          noValidate
+          suppressHydrationWarning // Chrome on iOS adds autofill attributes.
+        >
           <FormField
             control={form.control}
             name="password"

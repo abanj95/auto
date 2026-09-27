@@ -101,3 +101,11 @@
     @apply font-sans;
   }
 }
+
+/* Horizontal scrollers (photo gallery, card rows) without a visible scrollbar. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
