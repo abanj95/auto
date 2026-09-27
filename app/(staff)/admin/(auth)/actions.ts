@@ -45,6 +45,9 @@ export async function signInWithPassword(input: LoginInput, next?: string): Prom
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
     if (isRateLimited(error)) return RATE_LIMITED;
+    // Deactivated users are banned in Supabase Auth. Supabase reports the ban
+    // before checking the password, so a "disabled" message here would reveal
+    // which emails are (former) staff accounts. Keep it generic.
     return { ok: false, error: "Incorrect email or password." };
   }
 

@@ -74,6 +74,24 @@ export function listingAge(publishedAt: string | null, createdAt: string) {
   return publishedAt ? `Listed ${span}` : `Created ${days === 0 ? "today" : `${span} ago`}`;
 }
 
+/** "never" / "just now" / "3 hours ago" / "5 days ago" / "Mar 4, 2026". */
+export function lastSeen(iso: string | null) {
+  if (!iso) return "never";
+  const ms = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 2) return "just now";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 /** "(215) 618-2789" -> "+12156182789" for tel:/sms: links. */
 export function phoneHref(phone: string) {
   const digits = phone.replace(/\D/g, "");

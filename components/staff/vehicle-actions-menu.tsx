@@ -29,7 +29,6 @@ import type { Enums } from "@/lib/database.types";
 
 type Props = {
   vehicle: { id: string; slug: string; status: Enums<"vehicle_status">; label: string };
-  isAdmin: boolean;
   /** Hide "Edit" when already on the edit page. */
   showEdit?: boolean;
   /** Called after a status change (the edit form keeps its own copy of the status). */
@@ -44,10 +43,9 @@ const STATUS_ACTIONS: { status: Enums<"vehicle_status">; label: string; icon: ty
   { status: "sold", label: "Mark sold", icon: Tag },
 ];
 
-/** ⋯ menu: Edit, status changes, View on site, Delete (admin only). */
+/** ⋯ menu: Edit, status changes, View on site, Delete (all staff, with confirmation). */
 export function VehicleActionsMenu({
   vehicle,
-  isAdmin,
   showEdit = true,
   onStatusChange,
   afterDelete,
@@ -118,31 +116,25 @@ export function VehicleActionsMenu({
               </a>
             </DropdownMenuItem>
           )}
-          {isAdmin && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                className="h-11"
-                onSelect={() => setConfirmDelete(true)}
-              >
-                <Trash2 aria-hidden /> Delete
-              </DropdownMenuItem>
-            </>
-          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            className="h-11"
+            onSelect={() => setConfirmDelete(true)}
+          >
+            <Trash2 aria-hidden /> Delete
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {isAdmin && (
-        <ConfirmDialog
-          open={confirmDelete}
-          onOpenChange={setConfirmDelete}
-          title={`Delete ${vehicle.label}?`}
-          description="This removes the listing and all of its photos. It can't be undone."
-          confirmLabel="Delete vehicle"
-          onConfirm={remove}
-        />
-      )}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete ${vehicle.label}?`}
+        description="This removes the listing and all of its photos. It can't be undone."
+        confirmLabel="Delete vehicle"
+        onConfirm={remove}
+      />
     </>
   );
 }

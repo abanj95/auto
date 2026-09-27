@@ -23,6 +23,21 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // The secret key bypasses RLS: only lib/supabase/admin.ts may read it.
+    files: ["app/**", "components/**", "lib/**", "proxy.ts"],
+    ignores: ["lib/supabase/admin.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[property.name='SUPABASE_SECRET_KEY']",
+          message:
+            "Use createAdminClient() from lib/supabase/admin.ts instead of reading the secret key.",
+        },
+      ],
+    },
+  },
   // Turn off rules that conflict with Prettier (must come last).
   prettier,
   globalIgnores([

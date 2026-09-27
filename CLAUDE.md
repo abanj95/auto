@@ -8,7 +8,7 @@ A simple used-car dealership website for McRowin Auto, replacing an old WordPres
   Call or Text, and share a listing. No buyer accounts, no forms, no favorites.
 - **Staff:** two roles.
   - `admin` manages everything: listings, site settings, users.
-  - `poster` can only create, edit, and mark listings sold.
+  - `poster` can create, edit, mark sold, and delete listings (no settings, users or featured).
   - Staff mostly post from a phone.
 
 ## Stack
@@ -83,7 +83,9 @@ tests/e2e/            Playwright smoke tests
   `fuel`, `sort`, `page`), validated by `lib/validation/inventory.ts` (bad values ignored).
 - Images: `next/image` with the Supabase bucket in `images.remotePatterns`; always pass `sizes`.
   Photo cards and galleries are 4:3 `object-cover`.
-- `site_settings.hours` format: `[{ "days": "Mon–Fri", "hours": "9:00 AM – 6:00 PM" }]`.
+- `site_settings.hours` format: 7 entries Monday→Sunday,
+  `[{ "day": "mon", "closed": false, "open": "09:00", "close": "18:00" }, …]`; the public site
+  groups matching days via `formatHours()` (`lib/validation/site-settings.ts`).
 - Hero image: `public/hero.jpg` (CC0 placeholder, see `public/CREDITS.md`).
 
 ## Staff posting tool (Stage 4)
@@ -105,6 +107,16 @@ tests/e2e/            Playwright smoke tests
 - Deleting a vehicle removes its storage files first (admin only).
 - E2E tests create/delete their own poster user and vehicles; they need `SUPABASE_SECRET_KEY`.
 - Next 16: use `preload` / `loading="eager"` on images, not the deprecated `priority`.
+
+## Admin pages (Stage 5)
+
+- `/admin` dashboard (all staff): counts, 5 recently updated, Add vehicle.
+- `/admin/settings`, `/admin/users` (admin only, in `(admin-only)/`): every page and action calls
+  `requireAdmin()`. Posters see these nav items greyed out (not links); typed URLs redirect.
+- Users: invite (email or "Copy invite link" via `generateLink`), password reset (email or copy
+  link), deactivate/reactivate, role change. Nobody can change their own role/active.
+- Invite links land on `/admin/welcome` (set password). Copied links go through
+  `/admin/auth/confirm` with a token hash, so they work without email/SMTP.
 
 ## Theme
 
@@ -130,8 +142,8 @@ Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `priv
 | Who                    | vehicles                                     | vehicle_photos + storage files     | profiles           | site_settings |
 | ---------------------- | -------------------------------------------- | ---------------------------------- | ------------------ | ------------- |
 | Public (anon)          | Read available / pending / sold (not drafts) | Read photos of those; files by URL | —                  | Read          |
-| Poster (active)        | Read all, create, edit (incl. mark sold)     | Read, add, edit, delete            | Read own row       | Read          |
-| Admin (active)         | Everything posters can + delete              | Same as poster                     | Read all, edit all | Read, edit    |
+| Poster (active)        | Read all, create, edit, mark sold, delete    | Read, add, edit, delete            | Read own row       | Read          |
+| Admin (active)         | Same as poster + change `featured`           | Same as poster                     | Read all, edit all | Read, edit    |
 | Inactive / other users | Same as public                               | Same as public                     | Read own row       | Read          |
 
 - Nobody can change their own `role` or `active` (trigger). The first admin is created with
@@ -143,8 +155,13 @@ Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `priv
 - Storage bucket `vehicle-photos` is public-read by URL but not listable. Uploads must be
   `{vehicle_id}/{file}` for an existing vehicle, webp or jpeg, max 5 MB.
 - Deleting a vehicle cascades its photo rows but NOT the storage files — delete those first.
-- The secret key (`SUPABASE_SECRET_KEY`) bypasses all of the above. Only use it in local scripts
-  or server-only code that has already checked the user is an admin.
+- The secret key (`SUPABASE_SECRET_KEY`) bypasses all of the above. In app code it may ONLY be
+  used via `createAdminClient()` in `lib/supabase/admin.ts` (server-only; ESLint enforces this),
+  after `requireAdmin()` or in a trusted server job. Local scripts/tests create their own client.
+- Sold cars are deleted completely (row + photo files) 31 days after `sold_at` by a daily Vercel
+  Cron job → `/api/cron/purge-sold` (requires `Authorization: Bearer $CRON_SECRET`).
+- Deactivating a user sets `profiles.active = false` AND bans them in Supabase Auth (no new
+  sign-ins or session refresh). Reactivating reverses both.
 
 ### Staff auth (app layer)
 

@@ -35,16 +35,28 @@ test.describe("poster", () => {
     if (userId) await admin.auth.admin.deleteUser(userId);
   });
 
-  test("a poster visiting /admin/settings is redirected to /admin", async ({ page }) => {
+  test("a poster sees Settings/Users greyed out and cannot open them", async ({ page }) => {
     await page.goto("/admin/login", { waitUntil: "networkidle" }); // Type only after hydration.
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/admin$/);
 
-    await page.goto("/admin/settings");
-    await expect(page).toHaveURL(/\/admin$/);
-    await expect(page.getByText("You don't have access to that page.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Settings" })).toHaveCount(0);
+    // Visible but disabled in the nav (bottom tabs on phones, sidebar on desktop).
+    for (const label of ["Settings", "Users"]) {
+      const item = page.getByRole("link", { name: `${label} (admin only)` });
+      await expect(item).toBeVisible();
+      await expect(item).toHaveAttribute("aria-disabled", "true");
+      await expect(item).not.toHaveAttribute("href", /.*/);
+    }
+
+    // Typing the URL is still blocked on the server.
+    for (const path of ["/admin/settings", "/admin/users"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/admin$/);
+      await expect(
+        page.getByRole("heading", { name: path.endsWith("users") ? "Users" : "Settings" }),
+      ).toHaveCount(0);
+    }
   });
 });

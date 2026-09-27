@@ -1,16 +1,13 @@
 import { Car, Plus } from "lucide-react";
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
-import { VehicleActionsMenu } from "@/components/staff/vehicle-actions-menu";
+import { STAFF_ROW_SELECT, VehicleRow } from "@/components/staff/vehicle-row";
 import { VehicleSearch } from "@/components/staff/vehicle-search";
-import { STATUS_LABELS, VehicleStatusBadge } from "@/components/staff/vehicle-status-badge";
+import { STATUS_LABELS } from "@/components/staff/vehicle-status-badge";
 import { Button } from "@/components/ui/button";
 import { requireStaff } from "@/lib/auth";
 import { Constants, type Enums } from "@/lib/database.types";
-import { formatPrice, listingAge, vehicleTitle } from "@/lib/format";
-import { photoUrl } from "@/lib/public-data";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +16,7 @@ export const metadata: Metadata = { title: "Vehicles" };
 const STATUSES = Constants.public.Enums.vehicle_status;
 
 export default async function VehiclesPage({ searchParams }: PageProps<"/admin/vehicles">) {
-  const { profile } = await requireStaff();
-  const isAdmin = profile.role === "admin";
+  await requireStaff();
   const params = await searchParams;
   const status = STATUSES.find((s) => s === params.status);
   // Keep search terms to characters that are safe inside a PostgREST filter.
@@ -35,9 +31,7 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/admin/v
   const supabase = await createClient();
   let query = supabase
     .from("vehicles")
-    .select(
-      "id, slug, stock_no, vin, year, make, model, trim, price, status, published_at, created_at, vehicle_photos(storage_path, sort_order)",
-    )
+    .select(STAFF_ROW_SELECT)
     .order("sort_order", { referencedTable: "vehicle_photos" })
     .limit(1, { referencedTable: "vehicle_photos" })
     .order("created_at", { ascending: false })
@@ -125,51 +119,9 @@ export default async function VehiclesPage({ searchParams }: PageProps<"/admin/v
         </div>
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
-          {vehicles.map((v) => {
-            const cover = v.vehicle_photos[0];
-            const title = vehicleTitle(v);
-            const age = listingAge(v.published_at, v.created_at);
-            return (
-              <li key={v.id} className="flex items-center gap-3 p-3">
-                <Link
-                  href={`/admin/vehicles/${v.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-3"
-                >
-                  <div className="relative aspect-[4/3] w-24 shrink-0 overflow-hidden rounded-lg bg-muted sm:w-28">
-                    {cover ? (
-                      <Image
-                        src={photoUrl(cover.storage_path)}
-                        alt=""
-                        fill
-                        sizes="112px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <Car
-                        className="absolute inset-0 m-auto size-6 text-muted-foreground"
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="truncate font-semibold">{title}</p>
-                    <p className="text-sm font-bold">
-                      {v.price == null ? "No price" : formatPrice(v.price)}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <VehicleStatusBadge status={v.status} />
-                      <span>{v.stock_no}</span>
-                      <span>· {age}</span>
-                    </div>
-                  </div>
-                </Link>
-                <VehicleActionsMenu
-                  vehicle={{ id: v.id, slug: v.slug, status: v.status, label: title }}
-                  isAdmin={isAdmin}
-                />
-              </li>
-            );
-          })}
+          {vehicles.map((v) => (
+            <VehicleRow key={v.id} vehicle={v} />
+          ))}
         </ul>
       )}
 

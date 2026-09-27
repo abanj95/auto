@@ -4,7 +4,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireAdmin, requireStaff } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth";
 import type { Enums, TablesInsert } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -160,9 +160,9 @@ export async function setVehicleStatus(
   return { ok: true, data };
 }
 
-/** Admin only. Deletes the photo files first (the row delete cascades photo rows only). */
+/** Any active staff member. Deletes the photo files first (the row delete cascades photo rows only). */
 export async function deleteVehicle(id: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requireStaff();
   if (!uuid.safeParse(id).success) return fail("Vehicle not found.");
   const supabase = await createClient();
 

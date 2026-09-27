@@ -13,6 +13,7 @@ import {
   saveVehicle,
   type SavedVehicle,
 } from "@/app/(staff)/admin/(app)/vehicles/actions";
+import { useUnsavedWarning } from "@/components/staff/use-unsaved-warning";
 import { VehicleActionsMenu } from "@/components/staff/vehicle-actions-menu";
 import { VehicleStatusBadge } from "@/components/staff/vehicle-status-badge";
 import { ChoiceChips } from "@/components/staff/vehicle-form/choice-chips";
@@ -229,32 +230,7 @@ export function VehicleForm({
   }, [isDraft]);
 
   // Warn before leaving with unsaved changes or uploads in progress.
-  const unsaved = isDirty || photoStatus.busy;
-  useEffect(() => {
-    if (!unsaved) return;
-    const message = "You have unsaved changes. Leave without saving?";
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = message;
-    };
-    const onClick = (e: MouseEvent) => {
-      const link = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
-      if (!link || link.target === "_blank" || e.defaultPrevented) return;
-      const url = new URL(link.href, window.location.href);
-      if (url.origin !== window.location.origin || url.pathname === window.location.pathname)
-        return;
-      if (!window.confirm(message)) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("click", onClick, true);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, [unsaved]);
+  useUnsavedWarning(isDirty || photoStatus.busy);
 
   // ---- VIN lookup: NHTSA prefill (only empty fields) + duplicate warning.
 
@@ -364,7 +340,6 @@ export function VehicleForm({
           {vehicle && (
             <VehicleActionsMenu
               vehicle={{ id: vehicle.id, slug: vehicle.slug, status: vehicle.status, label: title }}
-              isAdmin={isAdmin}
               showEdit={false}
               onStatusChange={(s) => adopt({ ...vehicle, status: s })}
               afterDelete="/admin/vehicles"

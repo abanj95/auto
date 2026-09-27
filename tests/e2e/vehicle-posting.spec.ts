@@ -102,7 +102,7 @@ test.describe("vehicle posting (poster)", () => {
     ).toBeVisible();
   });
 
-  test("poster does not see Delete or Featured", async ({ page }) => {
+  test("poster can delete vehicles but does not see Featured", async ({ page }) => {
     await login(page);
 
     await page.goto("/admin/vehicles/new", { waitUntil: "networkidle" });
@@ -116,6 +116,6 @@ test.describe("vehicle posting (poster)", () => {
       .first()
       .click();
     await expect(page.getByRole("menuitem", { name: "Edit" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible();
   });
 });
