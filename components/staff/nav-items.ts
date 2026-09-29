@@ -1,4 +1,4 @@
-import { Car, CirclePlus, Settings, Users, type LucideIcon } from "lucide-react";
+import { Car, CirclePlus, House, Settings, Users, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -21,6 +21,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Add",
     icon: CirclePlus,
     isActive: (p) => p === "/admin/vehicles/new",
+  },
+  {
+    href: "/admin/homepage",
+    label: "Homepage",
+    icon: House,
+    adminOnly: true,
+    isActive: (p) => p.startsWith("/admin/homepage"),
   },
   {
     href: "/admin/settings",

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 export function TopBar({ name }: { name: string }) {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4">
-      <Logo href="/admin" variant="wordmark" className="h-7" />
+      <Logo href="/admin" className="h-6" />
       <span className="ml-auto truncate text-sm text-muted-foreground">{name}</span>
       <form action={signOut} suppressHydrationWarning>
         <Button type="submit" variant="ghost" size="sm" className="h-10">

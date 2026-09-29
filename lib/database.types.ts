@@ -8,6 +8,63 @@ export type Database = {
   };
   public: {
     Tables: {
+      hero_slides: {
+        Row: {
+          active: boolean;
+          button_label: string | null;
+          button_link: string | null;
+          created_at: string;
+          ends_at: string | null;
+          headline: string | null;
+          id: string;
+          image_height: number;
+          image_path: string;
+          image_width: number;
+          overlay_strength: string;
+          sort_order: number;
+          starts_at: string | null;
+          subheadline: string | null;
+          text_position: string;
+          updated_at: string;
+        };
+        Insert: {
+          active?: boolean;
+          button_label?: string | null;
+          button_link?: string | null;
+          created_at?: string;
+          ends_at?: string | null;
+          headline?: string | null;
+          id?: string;
+          image_height: number;
+          image_path: string;
+          image_width: number;
+          overlay_strength?: string;
+          sort_order?: number;
+          starts_at?: string | null;
+          subheadline?: string | null;
+          text_position?: string;
+          updated_at?: string;
+        };
+        Update: {
+          active?: boolean;
+          button_label?: string | null;
+          button_link?: string | null;
+          created_at?: string;
+          ends_at?: string | null;
+          headline?: string | null;
+          id?: string;
+          image_height?: number;
+          image_path?: string;
+          image_width?: number;
+          overlay_strength?: string;
+          sort_order?: number;
+          starts_at?: string | null;
+          subheadline?: string | null;
+          text_position?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           active: boolean;
@@ -34,15 +91,22 @@ export type Database = {
       };
       site_settings: {
         Row: {
+          about_image_path: string | null;
           about_text: string | null;
           address: string | null;
           city: string | null;
           dealership_name: string;
           email: string | null;
           facebook_url: string | null;
+          favicon_path: string | null;
           google_maps_url: string | null;
+          hero_autoplay: boolean;
+          hero_interval_seconds: number;
           hours: Json;
           id: boolean;
+          logo_dark_path: string | null;
+          logo_path: string | null;
+          og_default_image_path: string | null;
           phone: string | null;
           price_disclaimer: string;
           sms_phone: string | null;
@@ -50,15 +114,22 @@ export type Database = {
           zip: string | null;
         };
         Insert: {
+          about_image_path?: string | null;
           about_text?: string | null;
           address?: string | null;
           city?: string | null;
           dealership_name?: string;
           email?: string | null;
           facebook_url?: string | null;
+          favicon_path?: string | null;
           google_maps_url?: string | null;
+          hero_autoplay?: boolean;
+          hero_interval_seconds?: number;
           hours?: Json;
           id?: boolean;
+          logo_dark_path?: string | null;
+          logo_path?: string | null;
+          og_default_image_path?: string | null;
           phone?: string | null;
           price_disclaimer?: string;
           sms_phone?: string | null;
@@ -66,15 +137,22 @@ export type Database = {
           zip?: string | null;
         };
         Update: {
+          about_image_path?: string | null;
           about_text?: string | null;
           address?: string | null;
           city?: string | null;
           dealership_name?: string;
           email?: string | null;
           facebook_url?: string | null;
+          favicon_path?: string | null;
           google_maps_url?: string | null;
+          hero_autoplay?: boolean;
+          hero_interval_seconds?: number;
           hours?: Json;
           id?: boolean;
+          logo_dark_path?: string | null;
+          logo_path?: string | null;
+          og_default_image_path?: string | null;
           phone?: string | null;
           price_disclaimer?: string;
           sms_phone?: string | null;

@@ -1,21 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { getSiteSettings } from "@/lib/public-data";
+import { siteImageUrl } from "@/lib/site-images";
+
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-  title: {
-    default: "McRowin Auto",
-    template: "%s | McRowin Auto",
-  },
-  description: "Quality used cars from McRowin Auto.",
-  // Phone numbers are already real tel:/sms: links. Stop mobile browsers from
-  // rewriting them (and other text) into their own links, which changes the
-  // HTML before React hydrates it.
-  formatDetection: { telephone: false, address: false, email: false, date: false },
-};
+// Favicon and default share image come from site settings (/admin/homepage),
+// with public/favicon.ico as the fallback.
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSiteSettings();
+  const favicon = siteImageUrl(s.favicon_path) ?? "/favicon.ico";
+  const shareImage = siteImageUrl(s.og_default_image_path);
+  return {
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    title: {
+      default: "McRowin Auto",
+      template: "%s | McRowin Auto",
+    },
+    description: "Quality used cars from McRowin Auto.",
+    icons: { icon: favicon, apple: s.favicon_path ? favicon : undefined },
+    openGraph: shareImage ? { images: [shareImage] } : undefined,
+    // Phone numbers are already real tel:/sms: links. Stop mobile browsers from
+    // rewriting them (and other text) into their own links, which changes the
+    // HTML before React hydrates it.
+    formatDetection: { telephone: false, address: false, email: false, date: false },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#b91c1c",

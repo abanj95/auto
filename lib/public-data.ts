@@ -3,7 +3,9 @@ import "server-only";
 import { cache } from "react";
 
 import type { Enums, Tables } from "@/lib/database.types";
+import { siteImageUrl } from "@/lib/site-images";
 import { createPublicClient } from "@/lib/supabase/public";
+import type { Overlay, TextPosition } from "@/lib/validation/homepage";
 import { PAGE_SIZE, type InventoryFilters } from "@/lib/validation/inventory";
 import { hoursSchema, type Hours } from "@/lib/validation/site-settings";
 
@@ -39,6 +41,26 @@ export function mapUrl(s: SiteSettings) {
   if (!s.address) return null;
   const q = `${s.dealership_name}, ${fullAddress(s)}`;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
+// ---------------------------------------------------------------- hero
+
+/** Live hero slides (RLS: active and inside their date window), in order. */
+export async function getHeroSlides() {
+  const { data, error } = await createPublicClient()
+    .from("hero_slides")
+    .select(
+      "id, image_path, headline, subheadline, button_label, button_link, text_position, overlay_strength",
+    )
+    .order("sort_order")
+    .order("created_at");
+  if (error) throw error;
+  return data.map(({ image_path, text_position, overlay_strength, ...s }) => ({
+    ...s,
+    src: siteImageUrl(image_path),
+    text_position: text_position as TextPosition,
+    overlay_strength: overlay_strength as Overlay,
+  }));
 }
 
 // ---------------------------------------------------------------- cards

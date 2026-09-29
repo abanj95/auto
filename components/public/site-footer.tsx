@@ -18,7 +18,7 @@ export async function SiteFooter() {
     <footer className="mt-auto bg-neutral-950 text-neutral-300">
       <Container className="grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-3">
-          <Logo tone="light" variant="full" className="h-7" />
+          <Logo tone="light" className="h-7" />
           <p className="text-sm text-neutral-400">
             Quality pre-owned vehicles{s.city ? ` in ${s.city}` : ""}. Like new, without the new
             price.

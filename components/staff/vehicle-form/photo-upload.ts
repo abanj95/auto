@@ -10,25 +10,35 @@ const WORKER_LIB_URL = "/vendor/browser-image-compression-2.0.2.js";
 
 export type PreparedPhoto = { blob: Blob; ext: "webp" | "jpg"; width: number; height: number };
 
+export type PrepareOptions = {
+  /** Longest side in px (default 1920). */
+  maxSide?: number;
+  /** "jpeg" skips WebP (e.g. share images, which some sites can't read as WebP). */
+  format?: "webp" | "jpeg";
+};
+
 /**
- * Resize to 1920px on the longest side and re-encode as WebP (JPEG where the
- * browser can't encode WebP, e.g. Safari). Re-encoding through a canvas drops
- * all EXIF data, including GPS location.
+ * Resize to 1920px (or `maxSide`) on the longest side and re-encode as WebP
+ * (JPEG where the browser can't encode WebP, e.g. Safari). Re-encoding through
+ * a canvas drops all EXIF data, including GPS location.
  */
-export async function preparePhoto(file: File): Promise<PreparedPhoto> {
+export async function preparePhoto(
+  file: File,
+  { maxSide = MAX_SIDE, format = "webp" }: PrepareOptions = {},
+): Promise<PreparedPhoto> {
   let blob: Blob = await imageCompression(file, {
-    maxWidthOrHeight: MAX_SIDE,
-    fileType: "image/webp",
+    maxWidthOrHeight: maxSide,
+    fileType: `image/${format}`,
     initialQuality: QUALITY,
     useWebWorker: true,
     libURL: WORKER_LIB_URL,
     preserveExif: false,
   });
 
-  if (blob.type !== "image/webp") {
+  if (format === "webp" && blob.type !== "image/webp") {
     // Browser couldn't make WebP (it silently produced PNG): use JPEG instead.
     blob = await imageCompression(file, {
-      maxWidthOrHeight: MAX_SIDE,
+      maxWidthOrHeight: maxSide,
       fileType: "image/jpeg",
       initialQuality: QUALITY,
       useWebWorker: true,
@@ -40,7 +50,7 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto> {
   // The library can hand back the original file untouched (keeping its EXIF).
   // Guarantee a fresh canvas encode in that case.
   if (blob === file || (blob.size === file.size && blob.type === file.type)) {
-    blob = await reencode(file, blob.type === "image/webp" ? "image/webp" : "image/jpeg");
+    blob = await reencode(file, blob.type === "image/webp" ? "image/webp" : "image/jpeg", maxSide);
   }
 
   const bitmap = await createImageBitmap(blob);
@@ -49,9 +59,9 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto> {
   return { blob, ext: blob.type === "image/webp" ? "webp" : "jpg", ...size };
 }
 
-async function reencode(file: Blob, type: string): Promise<Blob> {
+async function reencode(file: Blob, type: string, maxSide: number): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -59,7 +69,7 @@ async function reencode(file: Blob, type: string): Promise<Blob> {
   bitmap.close();
   const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, QUALITY));
   if (!out) throw new Error("Couldn't process this photo.");
-  return out.type === type ? out : reencode(file, "image/jpeg");
+  return out.type === type ? out : reencode(file, "image/jpeg", maxSide);
 }
 
 /**
@@ -71,6 +81,7 @@ export async function uploadPhoto(
   blob: Blob,
   onProgress: (fraction: number) => void,
   signal?: AbortSignal,
+  bucket = BUCKET,
 ): Promise<void> {
   const { data } = await createClient().auth.getSession();
   const token = data.session?.access_token;
@@ -78,7 +89,7 @@ export async function uploadPhoto(
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`);
+    xhr.open("POST", `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${bucket}/${path}`);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.setRequestHeader("apikey", process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
     xhr.setRequestHeader("Content-Type", blob.type);
@@ -95,14 +106,13 @@ export async function uploadPhoto(
 }
 
 function uploadErrorMessage(status: number, body: string) {
-  if (status === 413 || body.includes("maximum allowed size"))
-    return "Photo is too large (max 5 MB).";
+  if (status === 413 || body.includes("maximum allowed size")) return "Image is too large.";
   if (status === 401 || status === 403)
     return "You don't have permission to upload. Sign in again.";
   return "Upload failed. Tap Retry.";
 }
 
 /** Best-effort cleanup when a file uploaded but its database row couldn't be saved. */
-export async function removeUploadedFile(path: string) {
-  await createClient().storage.from(BUCKET).remove([path]);
+export async function removeUploadedFile(path: string, bucket = BUCKET) {
+  await createClient().storage.from(bucket).remove([path]);
 }

@@ -40,16 +40,18 @@ app/
     (app)/            Signed-in staff: top bar + bottom tabs / sidebar
       vehicles/       List (status chips, search), new, [id] edit; actions.ts = all vehicle/photo server actions
     api/vin/[vin]/    Staff-only NHTSA vPIC lookup (prefill)
-      (admin-only)/   Admin-only pages (settings, users) — default home for new pages
+      (admin-only)/   Admin-only pages (homepage, settings, users) — default home for new pages
 components/
   ui/                 shadcn/ui components (generated; edit sparingly)
   public/             Buyer-site components (cards, filters, gallery, share, action bar)
   staff/              Staff-area components
     vehicle-form/     Posting form: photo-manager (upload queue, dnd reorder), photo-upload (compress + XHR upload)
+    homepage/         Homepage editor: slide list/dialog, scaled previews, brand images
 lib/
   nhtsa.ts            VIN decode + mapping to our enums (server only)
   vehicle-options.ts  Feature checklist, color chips, description template
   public-data.ts      ALL public-site queries (cookie-free anon client) + photoUrl()
+  site-images.ts      siteImageUrl() + brand image definitions (client and server)
   format.ts           Price/mileage formatting, enum labels, tel:/sms: hrefs
   auth.ts             getStaff(), requireStaff(), requireAdmin() — server only
   auth-paths.ts       Staff route constants, public-path list, safe redirect helper
@@ -86,7 +88,8 @@ tests/e2e/            Playwright smoke tests
 - `site_settings.hours` format: 7 entries Monday→Sunday,
   `[{ "day": "mon", "closed": false, "open": "09:00", "close": "18:00" }, …]`; the public site
   groups matching days via `formatHours()` (`lib/validation/site-settings.ts`).
-- Hero image: `public/hero.jpg` (CC0 placeholder, see `public/CREDITS.md`).
+- Hero, logo, favicon, About photo and share image come from the database (see Homepage editor).
+  No hard-coded image references in components.
 
 ## Staff posting tool (Stage 4)
 
@@ -118,13 +121,31 @@ tests/e2e/            Playwright smoke tests
 - Invite links land on `/admin/welcome` (set password). Copied links go through
   `/admin/auth/confirm` with a token hash, so they work without email/SMTP.
 
+## Homepage editor
+
+- `/admin/homepage` (admin only): hero slides (`hero_slides`), carousel autoplay/interval, and brand
+  images in `site_settings` (`logo_path`, `logo_dark_path`, `favicon_path`, `about_image_path`,
+  `og_default_image_path`). Every action calls `revalidatePath("/", "layout")`.
+- Image paths: a leading `/` is a static file in `public/` (only the migration seed: `/hero.jpg`,
+  `/brand/logo-full*.png`); anything else is in the `site-images` bucket. Always use
+  `siteImageUrl()`. Static files are never deleted.
+- Uploads go straight from the browser (reusing `photo-upload.ts`): slides and About photo WebP
+  2400px, share image JPEG 1200px, logos/favicon as-is (PNG/SVG; favicon PNG only). Folders:
+  `slides/`, `logos/` (only place SVG is allowed), `icons/`, `photos/`.
+- Removing/replacing an image deletes the file only if no slide or setting still uses it
+  (`removeUnusedFiles`); cancelled dialog uploads are discarded.
+- `components/public/hero-slide.tsx` is shared by the public carousel and the admin previews; it
+  uses container queries (`@2xl`, `@5xl`) so the scaled previews match the live layout.
+- Public: visitors only see active slides inside their `starts_at`/`ends_at` window (RLS), so a
+  promo appears/ends within the home page's 5-minute revalidate. No live slides → plain fallback
+  hero. Favicon falls back to `public/favicon.ico`; no share image → none.
+
 ## Theme
 
 - Brand accent: `--brand` (`#b91c1c`) in `app/globals.css`, mapped to shadcn's `--primary` and
   `--ring`. Use `bg-primary` / `text-brand` rather than hard-coded colors.
-- Logo: `components/public/logo.tsx` (from the old site; files in `public/brand/`). Wordmark on
-  phones, full logo with "Verified Quality" from md up; `tone="light"` on dark backgrounds.
-  Source is only 500×60 — replace with a higher-resolution/SVG original when available.
+- Logo: `components/public/logo.tsx` (async server component) shows `site_settings.logo_path`
+  (`logo_dark_path` with `tone="light"`), else the dealership name as text.
 - Neutral grays from shadcn's `neutral` base. Inter via `next/font`.
 - Light mode only. Do not add a `.dark` class or dark palette.
 
@@ -155,6 +176,8 @@ Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `priv
   profile automatically — role is never taken from user metadata.
 - `stock_no`, `slug` (after first publish), `published_at`, `sold_at`, `created_by`, `created_at`
   and `updated_at` are set by triggers; client values are ignored.
+- `hero_slides`: anyone reads live slides; admins read all and write. Bucket `site-images`: public
+  by URL, not listable, admin-only upload/delete, 8 MB.
 - Storage bucket `vehicle-photos` is public-read by URL but not listable. Uploads must be
   `{vehicle_id}/{file}` for an existing vehicle, webp or jpeg, max 5 MB.
 - Deleting a vehicle cascades its photo rows but NOT the storage files — delete those first.

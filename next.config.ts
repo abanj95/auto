@@ -4,9 +4,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 const nextConfig: NextConfig = {
   images: {
-    // Vehicle photos from the public Supabase Storage bucket only.
+    // Vehicle photos and site images (hero, About photo) from the public Supabase buckets only.
     remotePatterns: supabaseUrl
-      ? [new URL(`${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/vehicle-photos/**`)]
+      ? ["vehicle-photos", "site-images"].map(
+          (bucket) =>
+            new URL(`${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/${bucket}/**`),
+        )
       : [],
   },
   // Lets phones on the same Wi-Fi load the dev server (http://192.168.x.x:3000).

@@ -1,41 +1,41 @@
-import Image from "next/image";
 import Link from "next/link";
 
-import logoFullLight from "@/public/brand/logo-full-light.png";
-import logoFull from "@/public/brand/logo-full.png";
-import logoWordmarkLight from "@/public/brand/logo-wordmark-light.png";
-import logoWordmark from "@/public/brand/logo-wordmark.png";
+import { getSiteSettings } from "@/lib/public-data";
+import { siteImageUrl } from "@/lib/site-images";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  /** "light" = white lettering, for dark backgrounds (footer). */
+  /** "light" = for dark backgrounds (footer): uses the dark-background logo. */
   tone?: "dark" | "light";
-  /**
-   * "wordmark" = MCROWIN AUTO only; "full" adds "| Verified Quality";
-   * "responsive" = wordmark on phones, full from md up.
-   */
-  variant?: "wordmark" | "full" | "responsive";
   href?: string;
+  /** Sets the logo height, e.g. "h-7". */
   className?: string;
 };
 
-/** McRowin Auto logo (from the previous site), linked to the home page. */
-export function Logo({ tone = "dark", variant = "responsive", href = "/", className }: Props) {
-  const full = tone === "light" ? logoFullLight : logoFull;
-  const wordmark = tone === "light" ? logoWordmarkLight : logoWordmark;
-  const img = (src: typeof full, extra?: string) => (
-    <Image src={src} alt="McRowin Auto" loading="eager" className={cn("h-full w-auto", extra)} />
-  );
+/**
+ * Logo from site settings (/admin/homepage), linked to the home page. Falls
+ * back to the dealership name as text when no logo is set for this tone.
+ */
+export async function Logo({ tone = "dark", href = "/", className }: Props) {
+  const s = await getSiteSettings();
+  const src = siteImageUrl(tone === "light" ? s.logo_dark_path : s.logo_path);
+  const [first, ...rest] = s.dealership_name.split(" ");
 
   return (
     <Link href={href} className={cn("inline-flex h-8 shrink-0 items-center", className)}>
-      {variant === "full" && img(full)}
-      {variant === "wordmark" && img(wordmark)}
-      {variant === "responsive" && (
-        <>
-          {img(wordmark, "md:hidden")}
-          {img(full, "hidden md:block")}
-        </>
+      {src ? (
+        // Plain <img>: any size or format (incl. SVG), sized by height.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={s.dealership_name} className="h-full w-auto max-w-[70vw]" />
+      ) : (
+        <span
+          className={cn(
+            "text-xl font-extrabold tracking-tight whitespace-nowrap",
+            tone === "light" ? "text-white" : "text-foreground",
+          )}
+        >
+          <span className="text-brand">{first}</span> {rest.join(" ")}
+        </span>
       )}
     </Link>
   );

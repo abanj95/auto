@@ -1,8 +1,9 @@
 import { Clock, MapPin, Phone } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
 import { Container } from "@/components/public/container";
+import { HeroCarousel } from "@/components/public/hero-carousel";
+import { HERO_HEIGHT } from "@/components/public/hero-slide";
 import { HoursList } from "@/components/public/hours-list";
 import { QuickSearch } from "@/components/public/quick-search";
 import { SectionHeading } from "@/components/public/section-heading";
@@ -10,22 +11,24 @@ import { VehicleGrid } from "@/components/public/vehicle-grid";
 import { Button } from "@/components/ui/button";
 import { Constants } from "@/lib/database.types";
 import { BODY_TYPE_LABELS, phoneHref } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   fullAddress,
   getFeaturedVehicles,
+  getHeroSlides,
   getInventoryFacets,
   getNewestVehicles,
   getSiteSettings,
   mapUrl,
 } from "@/lib/public-data";
-import heroImage from "@/public/hero.jpg";
 
 // Rebuilt at most every 5 minutes (staff saves will also refresh it).
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [settings, featured, newest, facets] = await Promise.all([
+  const [settings, slides, featured, newest, facets] = await Promise.all([
     getSiteSettings(),
+    getHeroSlides(),
     getFeaturedVehicles(),
     getNewestVehicles(6),
     getInventoryFacets(),
@@ -34,35 +37,22 @@ export default async function HomePage() {
   const address = fullAddress(settings);
   const map = mapUrl(settings);
   const place = settings.city ?? "your area";
+  const eyebrow = `${settings.dealership_name} · ${place}`;
 
   return (
     <>
-      {/* Hero */}
+      {/* Hero: carousel from /admin/homepage, or a plain fallback with no live slides */}
       <section className="relative isolate">
-        <div className="relative h-[480px] sm:h-[540px] lg:h-[600px]">
-          <Image
-            src={heroImage}
-            alt=""
-            fill
-            preload
-            placeholder="blur"
-            sizes="100vw"
-            className="-z-10 object-cover object-[70%_center]"
+        {slides.length > 0 ? (
+          <HeroCarousel
+            slides={slides}
+            eyebrow={eyebrow}
+            autoplay={settings.hero_autoplay}
+            intervalSeconds={settings.hero_interval_seconds}
           />
-          <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/45 to-black/30 sm:bg-gradient-to-r sm:from-black/85 sm:via-black/55 sm:to-black/10" />
-          <Container className="flex h-full flex-col justify-center pb-24 sm:pb-20">
-            <p className="text-sm font-semibold tracking-widest text-white/80 uppercase">
-              {settings.dealership_name} · {place}
-            </p>
-            <h1 className="mt-3 max-w-2xl text-4xl leading-[1.05] font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
-              Like new, without the new price.
-            </h1>
-            <p className="mt-4 max-w-lg text-lg text-white/85">
-              Clean, inspected pre-owned cars, trucks and SUVs, priced up front with dealer fees
-              included.
-            </p>
-          </Container>
-        </div>
+        ) : (
+          <FallbackHero name={settings.dealership_name} eyebrow={eyebrow} />
+        )}
         <Container className="relative -mt-20 sm:-mt-14">
           <div className="max-w-3xl">
             <QuickSearch makes={facets.makes} />
@@ -153,5 +143,28 @@ export default async function HomePage() {
         </section>
       </Container>
     </>
+  );
+}
+
+/** Shown when no slide is live: the dealership name on a plain dark background. */
+function FallbackHero({ name, eyebrow }: { name: string; eyebrow: string }) {
+  return (
+    <div
+      className={cn(
+        "bg-gradient-to-br from-neutral-950 via-neutral-900 to-brand/40 text-white",
+        HERO_HEIGHT,
+      )}
+      data-testid="fallback-hero"
+    >
+      <Container className="flex h-full flex-col justify-center pb-24 sm:pb-20">
+        <p className="text-sm font-semibold tracking-widest text-white/70 uppercase">{eyebrow}</p>
+        <h1 className="mt-3 max-w-2xl text-4xl leading-[1.05] font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+          {name}
+        </h1>
+        <p className="mt-4 max-w-lg text-lg text-white/80">
+          Quality pre-owned cars, trucks and SUVs, priced up front.
+        </p>
+      </Container>
+    </div>
   );
 }

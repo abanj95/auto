@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import { ContactCard } from "@/components/public/contact-card";
 import { Container } from "@/components/public/container";
 import { Button } from "@/components/ui/button";
 import { getSiteSettings } from "@/lib/public-data";
+import { siteImageUrl } from "@/lib/site-images";
 
 export const revalidate = 300;
 
@@ -19,6 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AboutPage() {
   const settings = await getSiteSettings();
   const paragraphs = settings.about_text?.split(/\n\s*\n/).filter((p) => p.trim()) ?? [];
+  const photo = siteImageUrl(settings.about_image_path);
 
   return (
     <Container className="grid gap-10 py-10 sm:py-14 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-14">
@@ -26,6 +29,18 @@ export default async function AboutPage() {
         <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
           About {settings.dealership_name}
         </h1>
+        {photo && (
+          <div className="relative mt-6 aspect-[4/3] overflow-hidden rounded-2xl bg-muted">
+            <Image
+              src={photo}
+              alt={settings.dealership_name}
+              fill
+              preload
+              sizes="(min-width: 1024px) 800px, 100vw"
+              className="object-cover"
+            />
+          </div>
+        )}
         <div className="mt-6 max-w-prose space-y-5 text-lg leading-relaxed text-foreground/85">
           {paragraphs.length > 0 ? (
             paragraphs.map((p, i) => <p key={i}>{p}</p>)
