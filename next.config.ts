@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
       : [],
   },
   // Lets phones on the same Wi-Fi load the dev server (http://192.168.x.x:3000).
-  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "*.local"],
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*", "*.local"],
 };
 
 export default nextConfig;

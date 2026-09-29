@@ -33,7 +33,8 @@ test.describe("admin pages", () => {
     });
     if (error) throw error;
     const userId = created.user.id;
-    const { data: before } = await admin.from("site_settings").select("phone").single();
+    // Saving the form writes every field (incl. suggested default hours): snapshot the whole row.
+    const { data: before } = await admin.from("site_settings").select("*").single();
 
     try {
       await admin.from("profiles").update({ role: "admin" }).eq("id", userId);
@@ -58,10 +59,7 @@ test.describe("admin pages", () => {
         `tel:+1215555${n}`,
       );
     } finally {
-      await admin
-        .from("site_settings")
-        .update({ phone: before?.phone ?? null })
-        .eq("id", true);
+      if (before) await admin.from("site_settings").update(before).eq("id", true);
       await admin.auth.admin.deleteUser(userId);
     }
   });
@@ -103,7 +101,7 @@ test.describe("admin pages", () => {
         headers: { authorization: `Bearer ${cronSecret}` },
       });
       expect(res.status()).toBe(200);
-      expect((await res.json()).deleted).toBeGreaterThanOrEqual(1);
+      expect((await res.json()).ok).toBe(true); // (Count may be 0 if a parallel run purged it first.)
 
       const { data: left } = await admin.from("vehicles").select("id").in("id", [old, recent]);
       expect(left?.map((v) => v.id)).toEqual([recent]);
