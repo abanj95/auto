@@ -24,6 +24,16 @@ export function safeAdminPath(next: string | null | undefined) {
   return next;
 }
 
+/**
+ * Base URL for links we send out (invites, password resets, magic links).
+ * NEXT_PUBLIC_SITE_URL wins; on Vercel a missing or localhost value falls back
+ * to the production domain Vercel provides, so emailed links never point at
+ * someone's laptop.
+ */
 export function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const isLocal = !configured || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(configured);
+  const vercelDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (isLocal && process.env.VERCEL && vercelDomain) return `https://${vercelDomain}`;
+  return (configured || "http://localhost:3000").replace(/\/$/, "");
 }

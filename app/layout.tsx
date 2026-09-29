@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { siteUrl } from "@/lib/auth-paths";
 import { ALLOW_INDEXING } from "@/lib/indexing";
 import { getSiteSettings } from "@/lib/public-data";
 import { siteImageUrl } from "@/lib/site-images";
@@ -15,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const favicon = siteImageUrl(s.favicon_path) ?? "/favicon.ico";
   const shareImage = siteImageUrl(s.og_default_image_path);
   return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    metadataBase: new URL(siteUrl()),
     title: {
       default: "McRowin Auto",
       template: "%s | McRowin Auto",
