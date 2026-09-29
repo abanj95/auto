@@ -122,6 +122,9 @@ tests/e2e/            Playwright smoke tests
 
 - Brand accent: `--brand` (`#b91c1c`) in `app/globals.css`, mapped to shadcn's `--primary` and
   `--ring`. Use `bg-primary` / `text-brand` rather than hard-coded colors.
+- Logo: `components/public/logo.tsx` (from the old site; files in `public/brand/`). Wordmark on
+  phones, full logo with "Verified Quality" from md up; `tone="light"` on dark backgrounds.
+  Source is only 500×60 — replace with a higher-resolution/SVG original when available.
 - Neutral grays from shadcn's `neutral` base. Inter via `next/font`.
 - Light mode only. Do not add a `.dark` class or dark palette.
 
