@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked --schema public > lib/database.types.ts && prettier --write lib/database.types.ts",
-    "db:seed-photos": "tsx scripts/seed-photos.ts"
+    "db:seed-demo": "tsx scripts/seed-demo.ts",
+    "db:remove-demo": "tsx scripts/remove-demo.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

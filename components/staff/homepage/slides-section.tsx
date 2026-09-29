@@ -39,7 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import type { Overlay, TextPosition } from "@/lib/validation/homepage";
+import type { FocalPoint, Overlay, TextPosition } from "@/lib/validation/homepage";
 
 const STATUS: Record<SlideStatus, { label: string; className: string }> = {
   live: { label: "Live", className: "bg-emerald-100 text-emerald-800" },
@@ -214,10 +214,10 @@ function SlideRow({
             ...slide,
             text_position: slide.text_position as TextPosition,
             overlay_strength: slide.overlay_strength as Overlay,
+            focal_point: slide.focal_point as FocalPoint,
           }}
           eyebrow={eyebrow}
-          preview
-          loading="lazy"
+          preview="desktop"
           className="size-full"
         />
       </ScaledPreview>

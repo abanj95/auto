@@ -23,6 +23,7 @@ export default async function HomepageEditorPage() {
   const adminSlides: AdminSlide[] = slides.map((slide) => ({
     ...slide,
     src: siteImageUrl(slide.image_path),
+    mobileSrc: siteImageUrl(slide.mobile_image_path),
     status: slideStatus(slide),
   }));
 

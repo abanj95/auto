@@ -12,18 +12,24 @@ export function VehicleBadges({
   vehicle,
   className,
 }: {
-  vehicle: { status: Enums<"vehicle_status">; published_at: string | null };
+  vehicle: { status: Enums<"vehicle_status">; published_at: string | null; is_demo?: boolean };
   className?: string;
 }) {
   const pending = vehicle.status === "pending";
   const isNew = vehicle.status === "available" && isNewArrival(vehicle.published_at);
-  if (!pending && !isNew) return null;
+  const demo = !!vehicle.is_demo;
+  if (!pending && !isNew && !demo) return null;
 
   return (
     <div className={cn("flex gap-1.5", className)}>
       {isNew && (
         <span className="rounded-full bg-brand px-2.5 py-1 text-xs font-bold text-brand-foreground shadow">
           New arrival
+        </span>
+      )}
+      {demo && (
+        <span className="rounded-full bg-neutral-900/85 px-2.5 py-1 text-xs font-bold text-white shadow">
+          Demo listing
         </span>
       )}
       {pending && (

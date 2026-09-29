@@ -113,7 +113,7 @@ export function HeroCarousel({
               slide={slide}
               eyebrow={eyebrow}
               heading={i === 0 ? "h1" : "h2"}
-              preload={i === 0}
+              priority={i === 0}
               loading={eager.has(i) ? "eager" : "lazy"}
               className={HERO_HEIGHT}
             />

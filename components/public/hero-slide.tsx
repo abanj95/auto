@@ -1,11 +1,14 @@
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
-import type { Overlay, TextPosition } from "@/lib/validation/homepage";
+import type { FocalPoint, Overlay, TextPosition } from "@/lib/validation/homepage";
 
 export type HeroSlideData = {
   src: string;
+  /** Portrait image for phones (below 768px); null = crop `src` around the focal point. */
+  mobileSrc: string | null;
+  focal_point: FocalPoint;
   headline: string | null;
   subheadline: string | null;
   button_label: string | null;
@@ -16,6 +19,15 @@ export type HeroSlideData = {
 
 /** Hero heights, shared by the carousel, the fallback hero and the admin previews. */
 export const HERO_HEIGHT = "h-[480px] sm:h-[540px] lg:h-[600px]";
+
+/** Below this width the mobile image is used (matches Tailwind's md). */
+const MOBILE_QUERY = "(max-width: 767px)";
+
+const FOCAL: Record<FocalPoint, string> = {
+  left: "object-[25%_center]",
+  center: "object-center",
+  right: "object-[75%_center]",
+};
 
 // Readability layer behind the text. Left-aligned text gets a gradient from the
 // text side; centered text an even tint.
@@ -40,10 +52,9 @@ export function HeroSlide({
   slide,
   eyebrow,
   heading = "h2",
-  preload = false,
+  priority = false,
   loading,
-  sizes = "100vw",
-  preview = false,
+  preview,
   className,
 }: {
   slide: HeroSlideData;
@@ -51,31 +62,77 @@ export function HeroSlide({
   eyebrow?: string;
   /** The first slide's headline is the page's h1. */
   heading?: "h1" | "h2" | "p";
-  preload?: boolean;
+  /** First slide: load at once with high priority. */
+  priority?: boolean;
   loading?: "eager" | "lazy";
-  sizes?: string;
-  /** Admin preview: the button is not a link; local blob: images aren't optimized. */
-  preview?: boolean;
+  /**
+   * Admin preview at a fixed size: "desktop" or "phone" picks the image
+   * explicitly; the button is not a link; images aren't optimized.
+   */
+  preview?: "desktop" | "phone";
   className?: string;
 }) {
   const Heading = heading;
   const centered = slide.text_position === "center";
   const hasButton = slide.button_label && slide.button_link;
   const buttonClass =
-    "mt-7 inline-flex h-12 items-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition hover:bg-primary/90";
+    "mt-7 inline-flex h-12 w-fit items-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition hover:bg-primary/90";
+  const imageClass = cn("absolute inset-0 -z-10 size-full object-cover", FOCAL[slide.focal_point]);
 
-  return (
-    <div className={cn("@container relative isolate overflow-hidden bg-neutral-900", className)}>
+  let image: React.ReactNode;
+  if (preview) {
+    const src = preview === "phone" && slide.mobileSrc ? slide.mobileSrc : slide.src;
+    const useMobile = preview === "phone" && slide.mobileSrc;
+    image = (
+      <Image
+        src={src}
+        alt=""
+        fill
+        unoptimized
+        className={cn(imageClass, useMobile && "object-center")}
+      />
+    );
+  } else if (slide.mobileSrc) {
+    // Art direction: portrait image on phones, landscape from md up.
+    const common = {
+      alt: "",
+      fill: true,
+      sizes: "100vw",
+      fetchPriority: priority ? "high" : undefined,
+    } as const;
+    const {
+      props: { srcSet: mobile },
+    } = getImageProps({ ...common, src: slide.mobileSrc });
+    const { props: desktop } = getImageProps({
+      ...common,
+      src: slide.src,
+      loading: priority ? "eager" : loading,
+    });
+    image = (
+      <picture>
+        <source media={MOBILE_QUERY} srcSet={mobile} sizes="100vw" />
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- alt comes from getImageProps */}
+        <img {...desktop} className={imageClass} />
+      </picture>
+    );
+  } else {
+    image = (
       <Image
         src={slide.src}
         alt=""
         fill
-        preload={preload}
+        preload={priority}
         loading={loading}
-        sizes={sizes}
-        unoptimized={preview || slide.src.endsWith(".svg")}
-        className="-z-10 object-cover object-[70%_center]"
+        sizes="100vw"
+        unoptimized={slide.src.endsWith(".svg")}
+        className={imageClass}
       />
+    );
+  }
+
+  return (
+    <div className={cn("@container relative isolate overflow-hidden bg-neutral-900", className)}>
+      {image}
       <div
         className={cn(
           "absolute inset-0 -z-10",
@@ -107,6 +164,10 @@ export function HeroSlide({
         {hasButton &&
           (preview ? (
             <span className={buttonClass}>{slide.button_label}</span>
+          ) : slide.button_link!.startsWith("tel:") ? (
+            <a href={slide.button_link!} className={buttonClass}>
+              {slide.button_label}
+            </a>
           ) : (
             <Link href={slide.button_link!} className={buttonClass}>
               {slide.button_label}

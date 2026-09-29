@@ -55,7 +55,7 @@ test("a vehicle page shows Call, Text and Share", async ({ page }) => {
   await expect(call).toHaveAttribute("href", /^tel:\+\d+$/);
   const text = actions.getByRole("link", { name: "Text", exact: true });
   await expect(text).toBeVisible();
-  await expect(text).toHaveAttribute("href", /^sms:\+\d+\?&body=.+stock%20MC-\d{4}/);
+  await expect(text).toHaveAttribute("href", /^sms:\+\d+\?&body=.+stock%20[A-Z]+-\d{4}/);
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
   await expectNoHorizontalScroll(page);
 });

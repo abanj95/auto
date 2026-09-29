@@ -5,7 +5,7 @@ import { cache } from "react";
 import type { Enums, Tables } from "@/lib/database.types";
 import { siteImageUrl } from "@/lib/site-images";
 import { createPublicClient } from "@/lib/supabase/public";
-import type { Overlay, TextPosition } from "@/lib/validation/homepage";
+import type { FocalPoint, Overlay, TextPosition } from "@/lib/validation/homepage";
 import { PAGE_SIZE, type InventoryFilters } from "@/lib/validation/inventory";
 import { hoursSchema, type Hours } from "@/lib/validation/site-settings";
 
@@ -50,23 +50,27 @@ export async function getHeroSlides() {
   const { data, error } = await createPublicClient()
     .from("hero_slides")
     .select(
-      "id, image_path, headline, subheadline, button_label, button_link, text_position, overlay_strength",
+      "id, image_path, mobile_image_path, focal_point, headline, subheadline, button_label, button_link, text_position, overlay_strength",
     )
     .order("sort_order")
     .order("created_at");
   if (error) throw error;
-  return data.map(({ image_path, text_position, overlay_strength, ...s }) => ({
-    ...s,
-    src: siteImageUrl(image_path),
-    text_position: text_position as TextPosition,
-    overlay_strength: overlay_strength as Overlay,
-  }));
+  return data.map(
+    ({ image_path, mobile_image_path, focal_point, text_position, overlay_strength, ...s }) => ({
+      ...s,
+      src: siteImageUrl(image_path),
+      mobileSrc: siteImageUrl(mobile_image_path),
+      focal_point: focal_point as FocalPoint,
+      text_position: text_position as TextPosition,
+      overlay_strength: overlay_strength as Overlay,
+    }),
+  );
 }
 
 // ---------------------------------------------------------------- cards
 
 const CARD_SELECT =
-  "id, slug, year, make, model, trim, price, mileage, drivetrain, status, published_at, vehicle_photos(storage_path, width, height, sort_order)";
+  "id, slug, year, make, model, trim, price, mileage, drivetrain, status, published_at, is_demo, vehicle_photos(storage_path, width, height, sort_order)";
 
 type CardRow = Pick<
   Tables<"vehicles">,
@@ -81,6 +85,7 @@ type CardRow = Pick<
   | "drivetrain"
   | "status"
   | "published_at"
+  | "is_demo"
 > & {
   vehicle_photos: Pick<
     Tables<"vehicle_photos">,

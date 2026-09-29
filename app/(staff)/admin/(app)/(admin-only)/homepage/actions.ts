@@ -63,12 +63,17 @@ function revalidateSite() {
 async function removeUnusedFiles(supabase: Supabase, paths: (string | null | undefined)[]) {
   const candidates = [...new Set(paths)].filter((p): p is string => !!p && !isStaticImage(p));
   if (candidates.length === 0) return;
+  // Paths are uuid-based ([\w/.-]), so they're safe inside a PostgREST in.() list.
+  const list = candidates.map((p) => `"${p}"`).join(",");
 
   const [{ data: slides }, { data: settings }] = await Promise.all([
-    supabase.from("hero_slides").select("image_path").in("image_path", candidates),
+    supabase
+      .from("hero_slides")
+      .select("image_path, mobile_image_path")
+      .or(`image_path.in.(${list}),mobile_image_path.in.(${list})`),
     supabase.from("site_settings").select(BRAND_COLUMNS).single(),
   ]);
-  const used = new Set<string | null>(slides?.map((s) => s.image_path));
+  const used = new Set<string | null>(slides?.flatMap((s) => [s.image_path, s.mobile_image_path]));
   if (settings) for (const key of BRAND_IMAGE_KEYS) used.add(settings[key]);
 
   const unused = candidates.filter((p) => !used.has(p));
@@ -110,7 +115,7 @@ export async function updateSlide(id: string, values: SlideFormValues): Promise<
 
   const { data: before } = await supabase
     .from("hero_slides")
-    .select("image_path")
+    .select("image_path, mobile_image_path")
     .eq("id", id)
     .maybeSingle();
   if (!before) return fail("Slide not found. It may have been deleted.");
@@ -118,9 +123,12 @@ export async function updateSlide(id: string, values: SlideFormValues): Promise<
   const { error } = await supabase.from("hero_slides").update(parsed.data).eq("id", id);
   if (error) return dbError(error);
 
-  if (before.image_path !== parsed.data.image_path) {
-    await removeUnusedFiles(supabase, [before.image_path]);
-  }
+  await removeUnusedFiles(
+    supabase,
+    [before.image_path, before.mobile_image_path].filter(
+      (p) => p !== parsed.data.image_path && p !== parsed.data.mobile_image_path,
+    ),
+  );
   revalidateSite();
   return { ok: true };
 }
@@ -144,11 +152,11 @@ export async function deleteSlide(id: string): Promise<HomepageResult> {
     .from("hero_slides")
     .delete()
     .eq("id", id)
-    .select("image_path")
+    .select("image_path, mobile_image_path")
     .maybeSingle();
   if (error) return dbError(error);
 
-  if (slide) await removeUnusedFiles(supabase, [slide.image_path]);
+  if (slide) await removeUnusedFiles(supabase, [slide.image_path, slide.mobile_image_path]);
   revalidateSite();
   return { ok: true };
 }

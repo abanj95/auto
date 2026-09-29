@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { ALLOW_INDEXING } from "@/lib/indexing";
 import { getSiteSettings } from "@/lib/public-data";
 import { siteImageUrl } from "@/lib/site-images";
 
@@ -22,6 +23,8 @@ export async function generateMetadata(): Promise<Metadata> {
     description: "Quality used cars from McRowin Auto.",
     icons: { icon: favicon, apple: s.favicon_path ? favicon : undefined },
     openGraph: shareImage ? { images: [shareImage] } : undefined,
+    // Until launch (NEXT_PUBLIC_ALLOW_INDEXING=true), keep every page out of search results.
+    robots: ALLOW_INDEXING ? undefined : { index: false, follow: false },
     // Phone numbers are already real tel:/sms: links. Stop mobile browsers from
     // rewriting them (and other text) into their own links, which changes the
     // HTML before React hydrates it.

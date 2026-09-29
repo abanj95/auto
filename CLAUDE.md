@@ -66,15 +66,22 @@ lib/
 proxy.ts              Next 16 "middleware" — refreshes session; signed-out /admin -> login
 scripts/              Local tools (tsx); use the secret key; app code may not import them
   create-admin.ts     One-time: create/update the admin user from ADMIN_EMAIL/ADMIN_PASSWORD
+  seed-demo.ts        Demo vehicles (is_demo) + hero slides from Unsplash (docs/image-credits.md)
+  remove-demo.ts      Deletes every is_demo vehicle + photos + files (run before launch)
 supabase/
   migrations/         SQL migrations (never edit one that has been pushed; add a new one)
-  seed.sql            DEV ONLY: 6 sample vehicles (fixed ids a0000000-…)
-  unseed.sql          Removes the sample data before launch
   config.toml         Supabase CLI config
 tests/e2e/            Playwright smoke tests
+docs/image-credits.md Source, photographer and license of every seeded photo
 ```
 
 ## Public site
+
+- Search engines: until `NEXT_PUBLIC_ALLOW_INDEXING=true` (set at launch on the real domain),
+  `app/robots.ts` disallows everything and the root layout marks every page noindex
+  (`lib/indexing.ts`).
+- Demo listings: `vehicles.is_demo` shows a "Demo listing" badge (card + vehicle page). Seed with
+  `pnpm db:seed-demo`; remove all of them before launch with `pnpm db:remove-demo`.
 
 - Public pages read data only through `lib/public-data.ts` (anon client, never cookies), so
   they see exactly what a visitor sees and can be cached. Home/about/contact and vehicle pages
@@ -126,9 +133,12 @@ tests/e2e/            Playwright smoke tests
 - `/admin/homepage` (admin only): hero slides (`hero_slides`), carousel autoplay/interval, and brand
   images in `site_settings` (`logo_path`, `logo_dark_path`, `favicon_path`, `about_image_path`,
   `og_default_image_path`). Every action calls `revalidatePath("/", "layout")`.
-- Image paths: a leading `/` is a static file in `public/` (only the migration seed: `/hero.jpg`,
+- Image paths: a leading `/` is a static file in `public/` (only the migration-seeded logos,
   `/brand/logo-full*.png`); anything else is in the `site-images` bucket. Always use
   `siteImageUrl()`. Static files are never deleted.
+- Slides may have a portrait `mobile_image_path` (served below 768px via `<picture>` +
+  `getImageProps()`); without one, the desktop image is cropped around `focal_point`. Button
+  links are internal paths or `tel:+1…`.
 - Uploads go straight from the browser (reusing `photo-upload.ts`): slides and About photo WebP
   2400px, share image JPEG 1200px, logos/favicon as-is (PNG/SVG; favicon PNG only). Folders:
   `slides/`, `logos/` (only place SVG is allowed), `icons/`, `photos/`.
@@ -156,7 +166,8 @@ tests/e2e/            Playwright smoke tests
 - `pnpm test:e2e` (starts the dev server; runs at 360px and desktop)
 - `pnpm db:push` apply new migrations to the linked Supabase project
 - `pnpm db:types` regenerate `lib/database.types.ts` after any schema change
-- `pnpm db:seed-photos [--remove]` upload/remove placeholder photos for the seed vehicles
+- `pnpm db:seed-demo` / `pnpm db:remove-demo` add / remove demo vehicles (writes to the project in
+  `.env.local`; re-runnable)
 
 ## Security
 

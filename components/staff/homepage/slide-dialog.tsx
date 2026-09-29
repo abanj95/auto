@@ -29,9 +29,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  FOCAL_POINTS,
   OVERLAYS,
   slideSchema,
   TEXT_POSITIONS,
+  type FocalPoint,
   type Overlay,
   type SlideFormValues,
   type TextPosition,
@@ -57,6 +59,10 @@ function initialValues(slide: AdminSlide | null): SlideFormValues {
     image_path: slide?.image_path ?? "",
     image_width: slide?.image_width ?? 0,
     image_height: slide?.image_height ?? 0,
+    mobile_image_path: slide?.mobile_image_path ?? null,
+    mobile_image_width: slide?.mobile_image_width ?? null,
+    mobile_image_height: slide?.mobile_image_height ?? null,
+    focal_point: (slide?.focal_point as FocalPoint) ?? "center",
     headline: slide?.headline ?? "",
     subheadline: slide?.subheadline ?? "",
     button_label: slide?.button_label ?? "",
@@ -89,14 +95,16 @@ export function SlideDialog({
   const { register, control, setValue, formState } = form;
   const values = useWatch({ control }) as SlideFormValues;
   const [preview, setPreview] = useState<string | null>(slide?.src ?? null);
+  const [mobilePreview, setMobilePreview] = useState<string | null>(slide?.mobileSrc ?? null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // Files uploaded in this dialog that aren't saved to a slide yet.
   const pending = useRef(new Set<string>());
 
-  function discardPending(keep?: string) {
-    for (const path of pending.current) if (path !== keep) void discardUpload(path);
+  function discardPending(...keep: (string | null)[]) {
+    for (const path of pending.current) if (!keep.includes(path)) void discardUpload(path);
     pending.current.clear();
   }
 
@@ -105,13 +113,21 @@ export function SlideDialog({
     onOpenChange(false);
   }
 
-  async function onPickFile(file: File | undefined) {
+  async function onPickFile(file: File | undefined, kind: "desktop" | "phone" = "desktop") {
     if (!file) return;
     const localUrl = URL.createObjectURL(file);
     setProgress(0);
     try {
       const uploaded = await uploadSiteImage(file, "slides", "photo", setProgress);
       pending.current.add(uploaded.path);
+      if (kind === "phone") {
+        setValue("mobile_image_path", uploaded.path, { shouldDirty: true });
+        setValue("mobile_image_width", uploaded.width);
+        setValue("mobile_image_height", uploaded.height);
+        form.clearErrors("mobile_image_path");
+        setMobilePreview(localUrl);
+        return;
+      }
       setValue("image_path", uploaded.path, { shouldDirty: true });
       setValue("image_width", uploaded.width);
       setValue("image_height", uploaded.height);
@@ -150,7 +166,7 @@ export function SlideDialog({
         toast.error(result.error);
         return;
       }
-      discardPending(input.image_path);
+      discardPending(input.image_path, input.mobile_image_path);
       toast.success(slide ? "Slide saved. The home page is updated." : "Slide added.");
       onOpenChange(false);
     } catch {
@@ -167,6 +183,8 @@ export function SlideDialog({
   const previewSlide = preview
     ? {
         src: preview,
+        mobileSrc: mobilePreview,
+        focal_point: values.focal_point,
         headline: values.headline || null,
         subheadline: values.subheadline || null,
         button_label: values.button_label || null,
@@ -206,7 +224,7 @@ export function SlideDialog({
                     <HeroSlide
                       slide={previewSlide}
                       eyebrow={eyebrow}
-                      preview
+                      preview="desktop"
                       className="size-full"
                     />
                   </ScaledPreview>
@@ -217,7 +235,7 @@ export function SlideDialog({
                     <HeroSlide
                       slide={previewSlide}
                       eyebrow={eyebrow}
-                      preview
+                      preview="phone"
                       className="size-full"
                     />
                   </ScaledPreview>
@@ -274,6 +292,84 @@ export function SlideDialog({
             {err("image_path") && <p className="text-sm text-destructive">{err("image_path")}</p>}
           </div>
 
+          {/* Phone image (optional) */}
+          {previewSlide && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">Phone image (optional)</p>
+                <p className="text-xs text-muted-foreground">
+                  A portrait photo (e.g. 1080 × 1350) shown on phones. Without one, the image above
+                  is cropped for phones.
+                </p>
+              </div>
+              <input
+                ref={mobileInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                tabIndex={-1}
+                aria-label="Phone image"
+                data-testid="slide-mobile-image-input"
+                onChange={(e) => {
+                  void onPickFile(e.target.files?.[0], "phone");
+                  e.target.value = "";
+                }}
+                suppressHydrationWarning
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                {mobilePreview && (
+                  // eslint-disable-next-line @next/next/no-img-element -- local blob: or storage preview
+                  <img src={mobilePreview} alt="" className="h-20 w-16 rounded-md object-cover" />
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11"
+                  disabled={progress !== null}
+                  onClick={() => mobileInputRef.current?.click()}
+                >
+                  <ImagePlus aria-hidden />{" "}
+                  {mobilePreview ? "Replace phone image" : "Add phone image"}
+                </Button>
+                {mobilePreview && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-11 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      setValue("mobile_image_path", null, { shouldDirty: true });
+                      setValue("mobile_image_width", null);
+                      setValue("mobile_image_height", null);
+                      setMobilePreview(null);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+              {!mobilePreview && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Keep in view on phones</p>
+                  <ChoiceChips
+                    label="Keep in view on phones"
+                    allowDeselect={false}
+                    options={Object.entries(FOCAL_POINTS).map(([value, label]) => ({
+                      value,
+                      label,
+                    }))}
+                    value={values.focal_point}
+                    onChange={(v) =>
+                      setValue("focal_point", v as FocalPoint, { shouldDirty: true })
+                    }
+                  />
+                </div>
+              )}
+              {err("mobile_image_path") && (
+                <p className="text-sm text-destructive">{err("mobile_image_path")}</p>
+              )}
+            </div>
+          )}
+
           <Field id="headline" label="Headline" error={err("headline")}>
             <Input id="headline" {...register("headline")} className="h-12 text-base" />
           </Field>
@@ -299,7 +395,7 @@ export function SlideDialog({
               id="button_link"
               label="Button link"
               error={err("button_link")}
-              hint="A page on this site, e.g. /inventory?body=suv or a vehicle's page."
+              hint="A page on this site (e.g. /inventory?body=suv or a vehicle's page), or tel: and a phone number to call."
             >
               <Input
                 id="button_link"

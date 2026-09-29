@@ -4,7 +4,9 @@ import { BRAND_IMAGE_KEYS } from "@/lib/site-images";
 
 export const TEXT_POSITIONS = { left: "Left", center: "Center" } as const;
 export const OVERLAYS = { none: "None", light: "Light", dark: "Dark" } as const;
+export const FOCAL_POINTS = { left: "Left", center: "Center", right: "Right" } as const;
 export type TextPosition = keyof typeof TEXT_POSITIONS;
+export type FocalPoint = keyof typeof FOCAL_POINTS;
 export type Overlay = keyof typeof OVERLAYS;
 
 const text = (max: number) =>
@@ -36,6 +38,10 @@ export const slideSchema = z
     image_path: z.string().regex(SLIDE_IMAGE, "Add an image."),
     image_width: z.number().int().positive(),
     image_height: z.number().int().positive(),
+    mobile_image_path: z.string().regex(SLIDE_IMAGE, "Unsupported image.").nullable(),
+    mobile_image_width: z.number().int().positive().nullable(),
+    mobile_image_height: z.number().int().positive().nullable(),
+    focal_point: z.enum(Object.keys(FOCAL_POINTS) as [FocalPoint, ...FocalPoint[]]),
     headline: text(100),
     subheadline: text(200),
     button_label: text(30),
@@ -43,10 +49,12 @@ export const slideSchema = z
       .string()
       .trim()
       .max(300, "Use 300 characters or fewer.")
+      .transform((v) => (v.startsWith("tel:") ? `tel:${v.slice(4).replace(/[^\d+]/g, "")}` : v))
       .transform((v) => v || null)
       .refine(
-        (v) => v === null || (/^\/([^/\\]|$)/.test(v) && !/\s/.test(v)),
-        "Use a page on this site starting with /, e.g. /inventory?body=suv",
+        (v) =>
+          v === null || (/^\/([^/\\]|$)/.test(v) && !/\s/.test(v)) || /^tel:\+?\d{7,15}$/.test(v),
+        "Use a page on this site starting with /, e.g. /inventory?body=suv, or tel: and a phone number.",
       ),
     text_position: z.enum(Object.keys(TEXT_POSITIONS) as [TextPosition, ...TextPosition[]]),
     overlay_strength: z.enum(Object.keys(OVERLAYS) as [Overlay, ...Overlay[]]),
@@ -55,6 +63,13 @@ export const slideSchema = z
     ends_at: dateTime,
   })
   .superRefine((s, ctx) => {
+    const mobileParts = [s.mobile_image_path, s.mobile_image_width, s.mobile_image_height];
+    if (mobileParts.some((v) => v === null) && mobileParts.some((v) => v !== null))
+      ctx.addIssue({
+        code: "custom",
+        path: ["mobile_image_path"],
+        message: "Upload the phone image again.",
+      });
     if (s.button_label && !s.button_link)
       ctx.addIssue({
         code: "custom",

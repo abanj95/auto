@@ -3,7 +3,11 @@ import { MIN_SLIDE_WIDTH } from "@/lib/site-images";
 
 export type SlideStatus = "live" | "hidden" | "scheduled" | "ended";
 
-export type AdminSlide = Tables<"hero_slides"> & { src: string; status: SlideStatus };
+export type AdminSlide = Tables<"hero_slides"> & {
+  src: string;
+  mobileSrc: string | null;
+  status: SlideStatus;
+};
 
 /** Editor warning for small or portrait slide images, or null. */
 export function slideImageWarning(width: number, height: number) {
