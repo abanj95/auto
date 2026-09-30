@@ -40,7 +40,9 @@ app/
     (app)/            Signed-in staff: top bar + bottom tabs / sidebar
       vehicles/       List (status chips, search), new, [id] edit; actions.ts = all vehicle/photo server actions
     api/vin/[vin]/    Staff-only NHTSA vPIC lookup (prefill)
-      (admin-only)/   Admin-only pages (homepage, settings, users) — default home for new pages
+    api/uploads/      The only way images reach Storage (checked + re-encoded)
+    (auth)/mfa/       Two-step verification (TOTP enrolment / code)
+      (admin-only)/   Admin-only pages (homepage, settings, users, activity) — default home for new pages
 components/
   ui/                 shadcn/ui components (generated; edit sparingly)
   public/             Buyer-site components (cards, filters, gallery, share, action bar)
@@ -52,6 +54,9 @@ lib/
   vehicle-options.ts  Feature checklist, color chips, description template
   public-data.ts      ALL public-site queries (cookie-free anon client) + photoUrl()
   site-images.ts      siteImageUrl() + brand image definitions (client and server)
+  env.ts              Zod validation of env vars (run from next.config.ts; fails the build)
+  security/           csp.ts (nonce CSP), audit.ts (activity log), rate-limit.ts, request-info.ts,
+                      image-check.ts (magic bytes), session-limits.ts
   format.ts           Price/mileage formatting, enum labels, tel:/sms: hrefs
   auth.ts             getStaff(), requireStaff(), requireAdmin() — server only
   auth-paths.ts       Staff route constants, public-path list, safe redirect helper
@@ -73,6 +78,10 @@ supabase/
   config.toml         Supabase CLI config
 tests/e2e/            Playwright smoke tests
 docs/image-credits.md Source, photographer and license of every seeded photo
+docs/security-audit.md Findings, fixes, and the manual settings checklist
+docs/restore.md       Nightly backups (GitHub Actions) and how to restore
+.github/              CI (lint, types, build, audit, gitleaks, optional e2e), backups, ZAP, Dependabot
+.githooks/pre-commit  gitleaks secret scan (enabled by `pnpm install`)
 ```
 
 ## Public site
@@ -84,9 +93,10 @@ docs/image-credits.md Source, photographer and license of every seeded photo
   `pnpm db:seed-demo`; remove all of them before launch with `pnpm db:remove-demo`.
 
 - Public pages read data only through `lib/public-data.ts` (anon client, never cookies), so
-  they see exactly what a visitor sees and can be cached. Home/about/contact and vehicle pages
-  use `revalidate = 300`; `/inventory` is dynamic (filters in the URL).
-- Staff edits (later stages) must call `revalidatePath` for `/`, `/inventory/[slug]` etc.
+  they see exactly what a visitor sees. Every page renders per request (`connection()` in the
+  root layout) so it carries the CSP nonce — don't add `revalidate` / `generateStaticParams`.
+- Staff edits still call `revalidatePath` for `/`, `/inventory/[slug]` etc. (harmless, and needed
+  if caching comes back).
 - Inventory filters are plain GET forms with native `<select>`s; every filter lives in the
   URL (`make`, `model`, `year_min/max`, `price_min/max`, `mileage_max`, `body`, `drivetrain`,
   `fuel`, `sort`, `page`), validated by `lib/validation/inventory.ts` (bad values ignored).
@@ -106,16 +116,18 @@ docs/image-credits.md Source, photographer and license of every seeded photo
   make, model, price, mileage once not a draft. "≥1 photo to publish" is enforced in the server
   actions. Only admins can change `featured` (DB trigger + action).
 - Photos: compressed in the browser (1920px, WebP; JPEG where the browser can't encode WebP,
-  e.g. Safari). Canvas re-encode strips EXIF/GPS. Uploaded by XHR with the user's session (for
-  progress), 3 at a time, then recorded via `addPhoto`. Max 40. Worker script is self-hosted at
+  e.g. Safari), then uploaded by XHR (for progress), 3 at a time, to `POST /admin/api/uploads`,
+  which checks and re-encodes them and records the photo row. Max 40. Worker script is self-hosted at
   `public/vendor/browser-image-compression-2.0.2.js` — update it with the package.
 - New vehicle: the draft row is created on the first photo or first save. The URL stays
   `/admin/vehicles/new` until an explicit Save/Publish: server actions refresh the _current URL_,
   and switching to `[id]` mid-edit would remount the form and drop uploads.
 - Autosave every 10s for drafts only; listed cars use "Save changes" (never auto-publish edits).
 - Every vehicle/photo change calls `revalidatePath` for `/`, `/inventory`, `/inventory/[slug]`.
-- Deleting a vehicle removes its storage files first (admin only).
-- E2E tests create/delete their own poster user and vehicles; they need `SUPABASE_SECRET_KEY`.
+- Deleting a vehicle removes its storage files first (any staff member).
+- E2E tests use a shared admin + poster with two-factor (created and signed in once by
+  `tests/e2e/global-setup.ts`, removed by global-teardown) — Supabase Auth rate-limits token/MFA
+  verifications per IP. Tests that end sessions create their own user. Need `SUPABASE_SECRET_KEY`.
 - Next 16: use `preload` / `loading="eager"` on images, not the deprecated `priority`.
 
 ## Admin pages (Stage 5)
@@ -139,15 +151,15 @@ docs/image-credits.md Source, photographer and license of every seeded photo
 - Slides may have a portrait `mobile_image_path` (served below 768px via `<picture>` +
   `getImageProps()`); without one, the desktop image is cropped around `focal_point`. Button
   links are internal paths or `tel:+1…`.
-- Uploads go straight from the browser (reusing `photo-upload.ts`): slides and About photo WebP
-  2400px, share image JPEG 1200px, logos/favicon as-is (PNG/SVG; favicon PNG only). Folders:
-  `slides/`, `logos/` (only place SVG is allowed), `icons/`, `photos/`.
+- Uploads go through `POST /admin/api/uploads` (reusing `photo-upload.ts`): slides and About
+  photo WebP 2400px, share image JPEG 1200px, logos/favicon stored as PNG. No SVG. Folders:
+  `slides/`, `logos/`, `icons/`, `photos/`.
 - Removing/replacing an image deletes the file only if no slide or setting still uses it
   (`removeUnusedFiles`); cancelled dialog uploads are discarded.
 - `components/public/hero-slide.tsx` is shared by the public carousel and the admin previews; it
   uses container queries (`@2xl`, `@5xl`) so the scaled previews match the live layout.
 - Public: visitors only see active slides inside their `starts_at`/`ends_at` window (RLS), so a
-  promo appears/ends within the home page's 5-minute revalidate. No live slides → plain fallback
+  promo appears/ends on the next page load. No live slides → plain fallback
   hero. Favicon falls back to `public/favicon.ico`; no share image → none.
 
 ## Theme
@@ -163,7 +175,8 @@ docs/image-credits.md Source, photographer and license of every seeded photo
 
 - `pnpm dev`, `pnpm build`
 - `pnpm lint`, `pnpm typecheck`, `pnpm format`
-- `pnpm test:e2e` (starts the dev server; runs at 360px and desktop)
+- `pnpm test:e2e` (starts the dev server; runs at 360px and desktop; includes RLS and security
+  tests. Running it several times within ~5 minutes can hit Supabase Auth rate limits — wait)
 - `pnpm db:push` apply new migrations to the linked Supabase project
 - `pnpm db:types` regenerate `lib/database.types.ts` after any schema change
 - `pnpm db:seed-demo` / `pnpm db:remove-demo` add / remove demo vehicles (writes to the project in
@@ -171,52 +184,78 @@ docs/image-credits.md Source, photographer and license of every seeded photo
 
 ## Security
 
-Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `private.is_admin()` (not exposed via the API) require
-`profiles.active = true`, so deactivating a profile revokes access immediately.
+Full audit, fixes and the manual settings checklist: `docs/security-audit.md`. Backups:
+`docs/restore.md`.
 
-| Who                    | vehicles                                     | vehicle_photos + storage files     | profiles           | site_settings |
-| ---------------------- | -------------------------------------------- | ---------------------------------- | ------------------ | ------------- |
-| Public (anon)          | Read available / pending / sold (not drafts) | Read photos of those; files by URL | —                  | Read          |
-| Poster (active)        | Read all, create, edit, mark sold, delete    | Read, add, edit, delete            | Read own row       | Read          |
-| Admin (active)         | Same as poster + change `featured`           | Same as poster                     | Read all, edit all | Read, edit    |
-| Inactive / other users | Same as public                               | Same as public                     | Read own row       | Read          |
+### Access (database — the final guard)
 
+Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `private.is_admin()`
+(not exposed via the API) require `profiles.active`, **two-factor (JWT `aal = aal2`)** and a **live
+staff session** (`private.staff_sessions`: not ended, idle ≤ 30 min, signed in ≤ 12 h). So every
+staff RLS rule enforces MFA and session limits, even for someone with a valid token.
+
+| Who                      | vehicles                                     | vehicle_photos + storage files           | profiles           | site_settings / hero_slides | audit_log |
+| ------------------------ | -------------------------------------------- | ---------------------------------------- | ------------------ | --------------------------- | --------- |
+| Public (anon)            | Read available / pending / sold (not drafts) | Read photos of those; files by URL       | —                  | Read (live slides only)     | —         |
+| Poster (aal2, live)      | Read all, create, edit, mark sold, delete    | Read, edit, delete rows; delete files    | Read own row       | Read                        | —         |
+| Admin (aal2, live)       | Same as poster + change `featured`           | Same as poster; delete site-images files | Read all, edit all | Read, edit                  | Read      |
+| No MFA / idle / inactive | Same as public                               | Same as public                           | Read own row       | Read                        | —         |
+
+- **Nobody** uploads to Storage from the browser: only `POST /admin/api/uploads` (secret key, after
+  checks). No SVG anywhere. Buckets are public by URL, not listable, never overwritten.
+- `audit_log` is insert-only for everyone (trigger blocks update/delete/truncate, even the secret
+  key). Write it with `audit()` from `lib/security/audit.ts`; admins read it at `/admin/activity`.
 - Nobody can change their own `role` or `active` (trigger). The first admin is created with
-  `pnpm tsx scripts/create-admin.ts` (or in the SQL editor).
-- Public sign-ups are disabled; staff are invited by an admin. New auth users get a `poster`
-  profile automatically — role is never taken from user metadata.
-- `stock_no`, `slug` (after first publish), `published_at`, `sold_at`, `created_by`, `created_at`
-  and `updated_at` are set by triggers; client values are ignored.
-- `hero_slides`: anyone reads live slides; admins read all and write. Bucket `site-images`: public
-  by URL, not listable, admin-only upload/delete, 8 MB.
-- Storage bucket `vehicle-photos` is public-read by URL but not listable. Uploads must be
-  `{vehicle_id}/{file}` for an existing vehicle, webp or jpeg, max 5 MB.
-- Deleting a vehicle cascades its photo rows but NOT the storage files — delete those first.
+  `pnpm tsx scripts/create-admin.ts`. Public sign-ups are disabled; new auth users get `poster`.
+- On INSERT, signed-in users may only set the vehicle columns granted in migration 015 (not
+  `stock_no`, `created_by`, `published_at`, `sold_at`, `slug`, `is_demo`); triggers manage the rest.
 - The secret key (`SUPABASE_SECRET_KEY`) bypasses all of the above. In app code it may ONLY be
-  used via `createAdminClient()` in `lib/supabase/admin.ts` (server-only; ESLint enforces this),
-  after `requireAdmin()` or in a trusted server job. Local scripts/tests create their own client.
-- Sold cars are deleted completely (row + photo files) 31 days after `sold_at` by a daily Vercel
-  Cron job → `/api/cron/purge-sold` (requires `Authorization: Bearer $CRON_SECRET`).
-- Deactivating a user sets `profiles.active = false` AND bans them in Supabase Auth (no new
-  sign-ins or session refresh). Reactivating reverses both.
+  used via `createAdminClient()` (`lib/supabase/admin.ts`, server-only; ESLint enforces the env
+  read) — after `requireAdmin()` / `checkStaff()`, in `lib/security/*` (audit log, rate limits),
+  or in a trusted job (cron). Local scripts/tests create their own client.
+- Sold cars are purged 31 days after `sold_at` by the daily cron (`/api/cron/purge-sold`, Bearer
+  `CRON_SECRET`, constant-time check), which also cleans up rate-limit/session rows.
 
 ### Staff auth (app layer)
 
-Three layers, all required:
+1. `proxy.ts` (`lib/supabase/middleware.ts`): per-request CSP nonce + headers; `/admin/**`
+   signed out → login; no two-factor → `/admin/mfa`; > 12 h since sign-in → signed out;
+   `/admin/api/*` answers 401 instead of redirecting. Optimistic only.
+2. **Every** staff page and server action starts with `await requireStaff()` /
+   `await requireAdmin()`; route handlers use `checkStaff()`. They verify the JWT (`getClaims()`,
+   never `getSession()`), the active profile, aal2, and touch the server-side session (idle → signed
+   out with `?error=idle`). Layout checks don't protect pages or actions.
+3. RLS (above).
 
-1. `proxy.ts` — signed-out requests to `/admin/**` go to `/admin/login` (except `/admin/login`,
-   `/admin/forgot-password`, `/admin/auth/*`). Optimistic only.
-2. **Every** staff page and server action starts with `await requireStaff()` or
-   `await requireAdmin()` from `lib/auth.ts`. Layouts also call them, but a layout check does not
-   protect its pages or actions. Missing/inactive profile -> signed out, "Your account is disabled."
-   Poster on an admin page -> `/admin?denied=1` (toast).
-3. RLS in the database is the final guard.
+- Sign-in: password or magic link → `/admin/mfa` (TOTP enrolment with QR on first sign-in, then a
+  code). Lost phone → an admin uses "Reset two-step verification" on the Users page.
+- Login protection: Turnstile (when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set; Supabase verifies it),
+  20 attempts/IP/15 min, 5 failures lock an account for 15 min, email links 5/IP/15 min and
+  3/email/hour, generic messages only ("Invalid email or password", "If that email exists…").
+  Per-IP limits trust Vercel's `x-real-ip`/`x-forwarded-for` (fine on Vercel only).
+- Passwords ≥ 12 characters; changing one signs out every other session.
+- Idle logout in the browser (`components/staff/idle-watcher.tsx`): warning at 25 min, sign-out at
+  30, synced across tabs (BroadcastChannel); a 2-minute heartbeat keeps the server session alive.
+  Limits live in `lib/security/session-limits.ts` and must match migration 015.
+- Redirect targets (`next`) always go through `safeAdminPath()` (internal `/admin` paths only).
 
 Posters may only use `/admin` and `/admin/vehicles/**`. Put every other staff page in
 `app/(staff)/admin/(app)/(admin-only)/` and call `requireAdmin()` in it.
 
-Email links use Supabase's token-hash templates -> `/admin/auth/confirm` (works across devices).
-Email forms never reveal whether an account exists.
+### Rules for future changes
+
+- New staff page / action / route: guard it (`requireStaff`/`requireAdmin`/`checkStaff`), validate
+  input with Zod (ids with `z.uuid()`), and log security-relevant changes with `audit()`.
+- New table: enable RLS, explicit grants, policies via `private.is_staff()` / `is_admin()`;
+  `security definer` functions must `set search_path = ''`; functions the browser mustn't call get
+  `revoke … from public, anon, authenticated`. Run `supabase db advisors` after migrating.
+- Never render user/admin-provided URLs without checking the scheme (`isHttpsUrl`, internal paths).
+  No `dangerouslySetInnerHTML`.
+- No inline `<script>`s: anything that must run in the page comes from our bundle (CSP nonce +
+  `'strict-dynamic'`). New third-party origins (images, APIs, frames) go in `lib/security/csp.ts`.
+- Files: only through `/admin/api/uploads` (magic bytes + sharp). Never allow SVG.
+- Secrets only in `.env.local` / Vercel; env vars are validated in `lib/env.ts` (add new ones
+  there). Server-only modules import `"server-only"`. The gitleaks pre-commit hook and CI must pass.
 
 ## Rules
 
