@@ -22,13 +22,9 @@ import { ImagePlus, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { addPhoto, deletePhoto, reorderPhotos } from "@/app/(staff)/admin/(app)/vehicles/actions";
+import { deletePhoto, reorderPhotos } from "@/app/(staff)/admin/(app)/vehicles/actions";
 import { ConfirmDialog } from "@/components/staff/confirm-dialog";
-import {
-  preparePhoto,
-  removeUploadedFile,
-  uploadPhoto,
-} from "@/components/staff/vehicle-form/photo-upload";
+import { preparePhoto, uploadImage } from "@/components/staff/vehicle-form/photo-upload";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MAX_PHOTOS } from "@/lib/validation/vehicle";
@@ -105,31 +101,24 @@ export function PhotoManager({
 
   const run = useCallback(
     async (photo: Photo) => {
-      let path: string | null = null;
       try {
         const vehicleId = await getVehicleId();
         vehicleIdRef.current = vehicleId;
         update(photo.key, { state: "processing", progress: 0, error: undefined });
         const prepared = await preparePhoto(photo.file!);
 
-        path = `${vehicleId}/${crypto.randomUUID()}.${prepared.ext}`;
         update(photo.key, { state: "uploading" });
-        await uploadPhoto(path, prepared.blob, (fraction) =>
-          update(photo.key, { progress: fraction }),
+        // The server checks, re-encodes, stores and records the photo.
+        const saved = await uploadImage<{ id: string }>(
+          { kind: "vehicle", vehicleId },
+          prepared.blob,
+          (fraction) =>
+            update(
+              photo.key,
+              fraction >= 1 ? { state: "saving", progress: 1 } : { progress: fraction },
+            ),
         );
-
-        update(photo.key, { state: "saving", progress: 1 });
-        const result = await addPhoto({
-          vehicleId,
-          path,
-          width: prepared.width,
-          height: prepared.height,
-        });
-        if (!result.ok) {
-          await removeUploadedFile(path).catch(() => {});
-          throw new Error(result.error);
-        }
-        update(photo.key, { state: "done", id: result.data.id, file: undefined });
+        update(photo.key, { state: "done", id: saved.id, file: undefined });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Upload failed. Tap Retry.";
         update(photo.key, { state: "error", error: message });

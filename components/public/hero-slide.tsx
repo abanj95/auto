@@ -124,7 +124,6 @@ export function HeroSlide({
         preload={priority}
         loading={loading}
         sizes="100vw"
-        unoptimized={slide.src.endsWith(".svg")}
         className={imageClass}
       />
     );

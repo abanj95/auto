@@ -21,13 +21,13 @@ export function siteImageUrl(path: string | null | undefined) {
 export const BRAND_IMAGES = {
   logo_path: {
     label: "Logo",
-    help: "Shown in the header. PNG with a transparent background, or SVG.",
+    help: "Shown in the header. PNG with a transparent background (no SVG).",
     folder: "logos",
     mode: "original",
   },
   logo_dark_path: {
     label: "Logo for dark backgrounds",
-    help: "Shown in the footer (white or light lettering). PNG or SVG.",
+    help: "Shown in the footer (white or light lettering). PNG with transparency.",
     folder: "logos",
     mode: "original",
   },

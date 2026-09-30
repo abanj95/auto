@@ -1,8 +1,5 @@
 import imageCompression from "browser-image-compression";
 
-import { createClient } from "@/lib/supabase/client";
-
-const BUCKET = "vehicle-photos";
 const MAX_SIDE = 1920;
 const QUALITY = 0.8;
 // Self-hosted copy for the compression web worker (the default loads it from a CDN).
@@ -73,46 +70,41 @@ async function reencode(file: Blob, type: string, maxSide: number): Promise<Blob
 }
 
 /**
- * Upload straight to Supabase Storage with the signed-in user's session
- * (RLS decides). XHR instead of supabase-js so we get upload progress.
+ * Upload to our server (POST /admin/api/uploads), which checks the real file
+ * type, re-encodes it and stores it. XHR (not fetch) for upload progress.
  */
-export async function uploadPhoto(
-  path: string,
+export async function uploadImage<T>(
+  query: Record<string, string>,
   blob: Blob,
   onProgress: (fraction: number) => void,
   signal?: AbortSignal,
-  bucket = BUCKET,
-): Promise<void> {
-  const { data } = await createClient().auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("Your session has expired. Sign in again.");
-
-  await new Promise<void>((resolve, reject) => {
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/${bucket}/${path}`);
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.setRequestHeader("apikey", process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
-    xhr.setRequestHeader("Content-Type", blob.type);
-    xhr.setRequestHeader("x-upsert", "false");
+    xhr.open("POST", `/admin/api/uploads?${new URLSearchParams(query)}`);
+    xhr.setRequestHeader("Content-Type", blob.type || "application/octet-stream");
+    xhr.responseType = "json";
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(uploadErrorMessage(xhr.status, xhr.responseText)));
+    xhr.onload = () => {
+      const body = xhr.response as ({ ok: true } & T) | { ok: false; error?: string } | null;
+      if (xhr.status >= 200 && xhr.status < 300 && body?.ok) resolve(body as T);
+      else
+        reject(
+          new Error(
+            uploadErrorMessage(xhr.status, body && "error" in body ? body.error : undefined),
+          ),
+        );
+    };
     xhr.onerror = () => reject(new Error("Upload failed — check your connection and tap Retry."));
     signal?.addEventListener("abort", () => xhr.abort());
     xhr.send(blob);
   });
 }
 
-function uploadErrorMessage(status: number, body: string) {
-  if (status === 413 || body.includes("maximum allowed size")) return "Image is too large.";
+function uploadErrorMessage(status: number, serverMessage?: string) {
+  if (serverMessage) return serverMessage;
+  if (status === 413) return "Image is too large.";
   if (status === 401 || status === 403)
     return "You don't have permission to upload. Sign in again.";
   return "Upload failed. Tap Retry.";
-}
-
-/** Best-effort cleanup when a file uploaded but its database row couldn't be saved. */
-export async function removeUploadedFile(path: string, bucket = BUCKET) {
-  await createClient().storage.from(bucket).remove([path]);
 }

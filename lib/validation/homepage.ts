@@ -94,13 +94,13 @@ export const carouselSettingsSchema = z.object({
 });
 export type CarouselSettingsValues = z.input<typeof carouselSettingsSchema>;
 
-/** Brand image uploads: logos may be SVG; photos are compressed first. */
+/** Brand images: paths the upload route creates (logos/icons PNG, photos WebP/JPEG). No SVG. */
 export const brandImageSchema = z.object({
   key: z.enum(BRAND_IMAGE_KEYS as [string, ...string[]]),
   path: z
     .string()
     .regex(
-      /^(logos\/[\w-]+\.(png|svg|webp)|icons\/[\w-]+\.png|photos\/[\w-]+\.(webp|jpg))$/,
+      /^(logos\/[\w-]+\.png|icons\/[\w-]+\.png|photos\/[\w-]+\.(webp|jpg))$/,
       "Unsupported image.",
     )
     .nullable(),

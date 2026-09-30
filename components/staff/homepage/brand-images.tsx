@@ -94,7 +94,7 @@ function BrandImageCard({ imageKey, path }: { imageKey: BrandImageKey; path: str
         )}
       >
         {src ? (
-          // eslint-disable-next-line @next/next/no-img-element -- any format incl. SVG
+          // eslint-disable-next-line @next/next/no-img-element -- storage URL, any size
           <img
             src={src}
             alt=""
@@ -121,11 +121,7 @@ function BrandImageCard({ imageKey, path }: { imageKey: BrandImageKey; path: str
         ref={inputRef}
         type="file"
         accept={
-          isPhoto
-            ? "image/*"
-            : imageKey === "favicon_path"
-              ? "image/png"
-              : "image/png,image/svg+xml,image/webp"
+          isPhoto ? "image/*" : imageKey === "favicon_path" ? "image/png" : "image/png,image/webp"
         }
         className="sr-only"
         tabIndex={-1}
@@ -187,7 +183,6 @@ function BrandImageCard({ imageKey, path }: { imageKey: BrandImageKey; path: str
 }
 
 function sizeWarning(key: BrandImageKey, width: number, height: number) {
-  if (!width) return null; // SVG: scales to any size.
   if (key === "favicon_path" && (width !== height || width < 192)) {
     return "Favicons look best square and at least 192 × 192.";
   }

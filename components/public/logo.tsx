@@ -24,7 +24,7 @@ export async function Logo({ tone = "dark", href = "/", className }: Props) {
   return (
     <Link href={href} className={cn("inline-flex h-8 shrink-0 items-center", className)}>
       {src ? (
-        // Plain <img>: any size or format (incl. SVG), sized by height.
+        // Plain <img>: any size, sized by height.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={s.dealership_name} className="h-full w-auto max-w-[70vw]" />
       ) : (
