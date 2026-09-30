@@ -1,48 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 import sharp from "sharp";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
+import { admin, hasSupabase, STATE } from "./helpers/staff";
 
 test.describe("homepage editor", () => {
-  test.skip(!url || !secretKey, "needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY");
+  test.skip(!hasSupabase, "needs Supabase keys in .env.local");
   // These tests change the shared hero slides: run once, one at a time.
   test.describe.configure({ mode: "serial" });
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "desktop project only");
   });
 
-  const admin = createClient(url ?? "", secretKey ?? "", {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const email = `e2e-admin-${crypto.randomUUID()}@example.com`;
-  const password = `pw-${crypto.randomUUID()}`;
-  let userId: string | undefined;
-
-  test.beforeAll(async () => {
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: "E2E Admin" },
-    });
-    if (error) throw error;
-    userId = data.user.id;
-    await admin.from("profiles").update({ role: "admin" }).eq("id", userId);
-  });
-
-  test.afterAll(async () => {
-    if (userId) await admin.auth.admin.deleteUser(userId);
-  });
-
-  async function login(page: Page) {
-    await page.goto("/admin/login", { waitUntil: "networkidle" }); // Type only after hydration.
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page).toHaveURL(/\/admin$/);
-  }
+  test.use({ storageState: STATE.admin });
+  const login = (page: Page) => page.goto("/admin");
 
   test("an admin adds a slide and it appears on the home page", async ({ page }) => {
     const headline = `E2E slide ${crypto.randomUUID().slice(0, 8)}`;

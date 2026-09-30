@@ -1,8 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
+import { admin, hasSupabase, STATE } from "./helpers/staff";
+
 const cronSecret = process.env.CRON_SECRET;
 
 const VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789";
@@ -12,38 +11,20 @@ const randomVin = () =>
   );
 
 test.describe("admin pages", () => {
-  test.skip(!url || !secretKey, "needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY");
+  test.skip(!hasSupabase, "needs Supabase keys in .env.local");
   // These tests change shared data (site settings, vehicles): run them once, not per viewport.
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "desktop project only");
   });
 
-  const admin = createClient(url ?? "", secretKey ?? "", {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  test.use({ storageState: STATE.admin });
 
   test("an admin can update the phone number and see it in the public footer", async ({ page }) => {
-    const email = `e2e-admin-${crypto.randomUUID()}@example.com`;
-    const password = `pw-${crypto.randomUUID()}`;
-    const { data: created, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: "E2E Admin" },
-    });
-    if (error) throw error;
-    const userId = created.user.id;
     // Saving the form writes every field (incl. suggested default hours): snapshot the whole row.
     const { data: before } = await admin.from("site_settings").select("*").single();
 
     try {
-      await admin.from("profiles").update({ role: "admin" }).eq("id", userId);
-
-      await page.goto("/admin/login", { waitUntil: "networkidle" });
-      await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Password").fill(password);
-      await page.getByRole("button", { name: "Sign in" }).click();
-      await expect(page).toHaveURL(/\/admin$/);
+      await page.goto("/admin");
 
       await page.goto("/admin/settings", { waitUntil: "networkidle" });
       const n = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
@@ -60,7 +41,6 @@ test.describe("admin pages", () => {
       );
     } finally {
       if (before) await admin.from("site_settings").update(before).eq("id", true);
-      await admin.auth.admin.deleteUser(userId);
     }
   });
 

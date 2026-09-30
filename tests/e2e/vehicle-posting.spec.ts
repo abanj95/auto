@@ -1,9 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 import sharp from "sharp";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const secretKey = process.env.SUPABASE_SECRET_KEY;
+import { hasSupabase, STATE } from "./helpers/staff";
 
 // VIN alphabet has no I, O or Q. No check digit needed (not validated by design).
 const VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789";
@@ -13,53 +11,11 @@ const randomVin = () =>
   );
 
 test.describe("vehicle posting (poster)", () => {
-  test.skip(!url || !secretKey, "needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY");
+  test.skip(!hasSupabase, "needs Supabase keys in .env.local");
 
-  const admin = createClient(url ?? "", secretKey ?? "", {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const email = `e2e-poster-${crypto.randomUUID()}@example.com`;
-  const password = `pw-${crypto.randomUUID()}`;
-  let userId: string | undefined;
-
-  test.beforeAll(async () => {
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: "E2E Poster" },
-    });
-    if (error) throw error;
-    userId = data.user.id; // Gets a 'poster' profile from the auth trigger.
-  });
-
-  test.afterAll(async () => {
-    if (!userId) return;
-    // Remove everything this poster created: photo files, vehicles, then the user.
-    const { data: vehicles } = await admin
-      .from("vehicles")
-      .select("id, vehicle_photos(storage_path)")
-      .eq("created_by", userId);
-    const paths = (vehicles ?? []).flatMap((v) => v.vehicle_photos.map((p) => p.storage_path));
-    if (paths.length) await admin.storage.from("vehicle-photos").remove(paths);
-    if (vehicles?.length)
-      await admin
-        .from("vehicles")
-        .delete()
-        .in(
-          "id",
-          vehicles.map((v) => v.id),
-        );
-    await admin.auth.admin.deleteUser(userId);
-  });
-
-  async function login(page: Page) {
-    await page.goto("/admin/login", { waitUntil: "networkidle" }); // Type only after hydration.
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page).toHaveURL(/\/admin$/);
-  }
+  // The run's shared poster, already signed in; global-teardown.ts removes what it created.
+  test.use({ storageState: STATE.poster });
+  const login = (page: Page) => page.goto("/admin");
 
   test("poster can create a draft, add a photo, publish, and it appears on /inventory", async ({
     page,

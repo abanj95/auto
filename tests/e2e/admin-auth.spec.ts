@@ -1,5 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
+
+import { hasSupabase, STATE } from "./helpers/staff";
 
 test("visiting /admin while logged out redirects to /admin/login", async ({ page }) => {
   await page.goto("/admin");
@@ -8,41 +9,15 @@ test("visiting /admin while logged out redirects to /admin/login", async ({ page
 });
 
 test.describe("poster", () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-  test.skip(!url || !secretKey, "needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY");
+  test.skip(!hasSupabase, "needs Supabase keys in .env.local");
 
-  // A throwaway poster account, created and deleted by each run.
-  const admin = createClient(url ?? "", secretKey ?? "", {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const email = `e2e-poster-${crypto.randomUUID()}@example.com`;
-  const password = `pw-${crypto.randomUUID()}`;
-  let userId: string | undefined;
-
-  test.beforeAll(async () => {
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: "E2E Poster" },
-    });
-    if (error) throw error;
-    userId = data.user.id; // The auth trigger gives it a 'poster' profile.
-  });
-
-  test.afterAll(async () => {
-    if (userId) await admin.auth.admin.deleteUser(userId);
-  });
+  // The run's shared poster (with two-factor), already signed in (global-setup.ts).
+  test.use({ storageState: STATE.poster });
 
   test("a poster sees Homepage/Settings/Users greyed out and cannot open them", async ({
     page,
   }) => {
-    await page.goto("/admin/login", { waitUntil: "networkidle" }); // Type only after hydration.
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page).toHaveURL(/\/admin$/);
+    await page.goto("/admin");
 
     // Visible but disabled in the nav (bottom tabs on phones, sidebar on desktop).
     for (const label of ["Homepage", "Settings", "Users"]) {
@@ -57,6 +32,7 @@ test.describe("poster", () => {
       "/admin/homepage": "Homepage",
       "/admin/settings": "Settings",
       "/admin/users": "Users",
+      "/admin/activity": "Activity",
     };
     for (const [path, heading] of Object.entries(pages)) {
       await page.goto(path);
