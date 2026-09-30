@@ -1,0 +1,27 @@
+name: OWASP ZAP baseline (preview)
+
+# Passive scan of each successful Vercel preview deployment. Report only (it
+# doesn't fail the deployment); download the report from the run's artifacts.
+# Vercel preview protection must allow it: see docs/security-audit.md.
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  zap:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Preview'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          rules_file_name: .zap/rules.tsv
+          allow_issue_writing: false
+          fail_action: false
+          cmd_options: "-a -j"

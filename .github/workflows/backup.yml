@@ -1,0 +1,71 @@
+name: Nightly database backup
+
+# Free Supabase plans have no downloadable backups, so this dumps the database
+# every night, encrypts it and commits it to a PRIVATE backup repository.
+# Setup and restore: docs/restore.md.
+
+on:
+  schedule:
+    - cron: "15 7 * * *" # 03:15 New York (EDT) / 02:15 (EST)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      BACKUP_REPO: ${{ vars.BACKUP_REPO }} # e.g. abanj95/auto-backups (private)
+      KEEP_DAYS: 30
+    steps:
+      - name: Check configuration
+        run: |
+          for v in SUPABASE_DB_URL BACKUP_PASSPHRASE BACKUP_REPO; do
+            if [ -z "${!v}" ]; then echo "::error::$v is not set (see docs/restore.md)"; exit 1; fi
+          done
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Dump roles, schema and data
+        run: |
+          set -euo pipefail
+          mkdir -p dump
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f dump/data.sql --use-copy --data-only
+          ls -l dump
+
+      - name: Encrypt (AES-256)
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y-%m-%d)
+          tar -czf "backup-$stamp.tar.gz" -C dump .
+          gpg --batch --yes --symmetric --cipher-algo AES256 --pinentry-mode loopback \
+            --passphrase "$BACKUP_PASSPHRASE" -o "backup-$stamp.tar.gz.gpg" "backup-$stamp.tar.gz"
+          rm -rf dump "backup-$stamp.tar.gz"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backups
+
+      - name: Commit to the backup repository (keeps the last 30 days)
+        run: |
+          set -euo pipefail
+          mkdir -p backups/daily
+          mv "backup-$STAMP.tar.gz.gpg" backups/daily/
+          cd backups
+          find daily -name 'backup-*.tar.gz.gpg' -mtime +"$KEEP_DAYS" -delete
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Backup $STAMP" || echo "Nothing to commit"
+          git push

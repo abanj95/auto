@@ -14,7 +14,8 @@
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked --schema public > lib/database.types.ts && prettier --write lib/database.types.ts",
     "db:seed-demo": "tsx scripts/seed-demo.ts",
-    "db:remove-demo": "tsx scripts/remove-demo.ts"
+    "db:remove-demo": "tsx scripts/remove-demo.ts",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

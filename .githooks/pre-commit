@@ -1,0 +1,14 @@
+#!/bin/sh
+# Blocks commits that contain secrets (API keys, tokens, passwords).
+# Enabled automatically by `pnpm install` (core.hooksPath=.githooks).
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner --config .gitleaks.toml || {
+    echo ""
+    echo "gitleaks found what looks like a secret in your staged changes (value redacted above)."
+    echo "Remove it (keep real keys in .env.local), then commit again."
+    exit 1
+  }
+else
+  echo "warning: gitleaks is not installed, so this commit wasn't scanned for secrets."
+  echo "         Install it: brew install gitleaks   (CI scans every push anyway)"
+fi

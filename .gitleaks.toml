@@ -1,0 +1,25 @@
+# gitleaks config: default rules + Supabase key formats; placeholders allowed.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret key"
+regex = '''sb_secret_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_secret_"]
+
+[[rules]]
+id = "supabase-publishable-key"
+description = "Supabase publishable key (not secret, but keep it out of git too)"
+regex = '''sb_publishable_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_publishable_"]
+
+[allowlist]
+description = "Placeholders and docs"
+regexes = [
+  '''sb_publishable_placeholder''',
+  '''sb_(secret|publishable)_(ci|test|example)[A-Za-z0-9_]*''',
+]
+paths = [
+  '''pnpm-lock\.yaml''',
+]
