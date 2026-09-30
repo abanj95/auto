@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { connection } from "next/server";
+
 import { siteUrl } from "@/lib/auth-paths";
 import { ALLOW_INDEXING } from "@/lib/indexing";
 import { getSiteSettings } from "@/lib/public-data";
@@ -39,7 +41,10 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Every page is rendered per request so it gets the CSP nonce from proxy.ts
+  // (Next.js adds it to its scripts). See docs/security-audit.md (M1).
+  await connection();
   return (
     // suppressHydrationWarning: Chrome on iOS adds __gcrremoteframetoken to <html>
     // before React loads. Only affects this element's own attributes.

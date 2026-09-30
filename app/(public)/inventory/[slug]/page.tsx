@@ -28,14 +28,6 @@ import {
   type VehicleDetail,
 } from "@/lib/public-data";
 
-// Cached and rebuilt at most every 5 minutes (staff saves will also refresh it).
-export const revalidate = 300;
-
-// No pages prebuilt at deploy; each vehicle page is rendered on first visit, then cached.
-export function generateStaticParams() {
-  return [];
-}
-
 function fullTitle(v: VehicleDetail) {
   return [vehicleTitle(v), v.trim].filter(Boolean).join(" ");
 }

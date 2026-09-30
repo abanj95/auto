@@ -22,9 +22,6 @@ import {
   mapUrl,
 } from "@/lib/public-data";
 
-// Rebuilt at most every 5 minutes (staff saves will also refresh it).
-export const revalidate = 300;
-
 export default async function HomePage() {
   const [settings, slides, featured, newest, facets] = await Promise.all([
     getSiteSettings(),

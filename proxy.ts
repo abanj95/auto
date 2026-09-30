@@ -7,8 +7,15 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Skip static assets and images.
+  // Pages and route handlers only: skip static assets, images and link prefetches.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico)$).*)",
+    {
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|vendor/|brand/|.*\\.(?:png|jpg|jpeg|gif|webp|avif|ico|js|css|txt|xml|webmanifest)$).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
   ],
 };

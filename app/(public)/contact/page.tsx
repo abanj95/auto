@@ -4,8 +4,6 @@ import { ContactCard } from "@/components/public/contact-card";
 import { Container } from "@/components/public/container";
 import { getSiteSettings } from "@/lib/public-data";
 
-export const revalidate = 300;
-
 export const metadata: Metadata = {
   title: "Contact",
   description: "Call, text or visit us.",

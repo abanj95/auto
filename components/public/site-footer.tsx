@@ -6,7 +6,7 @@ import { HoursList } from "@/components/public/hours-list";
 import { Logo } from "@/components/public/logo";
 import { NAV_LINKS } from "@/components/public/nav-links";
 import { phoneHref, smsHref } from "@/lib/format";
-import { fullAddress, getSiteSettings, mapUrl } from "@/lib/public-data";
+import { fullAddress, getSiteSettings, isHttpsUrl, mapUrl } from "@/lib/public-data";
 
 export async function SiteFooter() {
   const s = await getSiteSettings();
@@ -64,7 +64,7 @@ export async function SiteFooter() {
               <Mail className="size-4 shrink-0" aria-hidden /> {s.email}
             </a>
           )}
-          {s.facebook_url && (
+          {isHttpsUrl(s.facebook_url) && (
             <a
               href={s.facebook_url}
               target="_blank"

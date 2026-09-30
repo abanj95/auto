@@ -1,18 +1,35 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isProtectedAdminPath, LOGIN_PATH } from "@/lib/auth-paths";
+import {
+  allowsAal1,
+  isProtectedAdminPath,
+  LOGIN_PATH,
+  MFA_PATH,
+  SIGN_OUT_PATH,
+} from "@/lib/auth-paths";
 import type { Database } from "@/lib/database.types";
+import { buildCsp, createNonce } from "@/lib/security/csp";
+import { MAX_SESSION_MS } from "@/lib/security/session-limits";
 
 /**
- * Refreshes the Supabase auth session on each request and forwards any
- * updated auth cookies. Signed-out requests to protected /admin routes are
- * redirected to the login page. Called from the root proxy.ts (Next 16's
- * middleware). This is an optimistic check only — pages and server actions
- * still call requireStaff() / requireAdmin().
+ * Runs on every page request (from proxy.ts, Next 16's middleware):
+ * 1. Content-Security-Policy with a per-request nonce (Next.js applies it to
+ *    its own scripts; the root layout reads it from x-nonce).
+ * 2. Refreshes the Supabase session and forwards updated auth cookies.
+ * 3. Staff area: signed out → login; no two-factor yet → /admin/mfa; signed in
+ *    more than 12 hours ago → signed out. Pages, actions and RLS check again
+ *    (this is the fast first gate, not the only one).
  */
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const nonce = createNonce();
+  const csp = buildCsp(nonce);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+
+  const next = () => NextResponse.next({ request: { headers: requestHeaders } });
+  let response = next();
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,7 +41,7 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = next();
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );
@@ -38,19 +55,53 @@ export async function updateSession(request: NextRequest) {
   // Do not add code between createServerClient and getClaims(): it triggers
   // the token refresh that keeps users signed in.
   const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
   const { pathname, search } = request.nextUrl;
-  if (!data?.claims && isProtectedAdminPath(pathname)) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = LOGIN_PATH;
-    loginUrl.search = "";
-    if (pathname !== "/admin") loginUrl.searchParams.set("next", pathname + search);
-
+  const redirectTo = (path: string, params: Record<string, string> = {}) => {
+    const url = request.nextUrl.clone();
+    url.pathname = path;
+    url.search = "";
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    const redirect = NextResponse.redirect(url);
     // Carry over any cookies Supabase just set (e.g. clearing an expired session).
-    const redirect = NextResponse.redirect(loginUrl);
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
-    return redirect;
+    return withHeaders(redirect, csp, true);
+  };
+
+  if (isProtectedAdminPath(pathname)) {
+    // APIs answer 401 instead of redirecting to a page.
+    const isApi = pathname.startsWith("/admin/api/");
+    const deny = (path: string, params?: Record<string, string>) =>
+      isApi
+        ? withHeaders(
+            NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 }),
+            csp,
+            true,
+          )
+        : redirectTo(path, params);
+    const nextParam: Record<string, string> =
+      pathname !== "/admin" ? { next: pathname + search } : {};
+    if (!claims) return deny(LOGIN_PATH, nextParam);
+
+    // Absolute limit: 12 hours after signing in, whatever the activity.
+    const amr = (claims.amr ?? []) as { timestamp: number }[];
+    const signedInAt = amr.length ? Math.min(...amr.map((a) => a.timestamp)) * 1000 : null;
+    if (signedInAt && Date.now() - signedInAt > MAX_SESSION_MS) {
+      return deny(SIGN_OUT_PATH, { reason: "expired" });
+    }
+
+    if (claims.aal !== "aal2" && !allowsAal1(pathname)) return deny(MFA_PATH, nextParam);
   }
 
+  return withHeaders(response, csp, pathname.startsWith("/admin"));
+}
+
+function withHeaders(response: NextResponse, csp: string, staff: boolean) {
+  response.headers.set("Content-Security-Policy", csp);
+  if (staff) {
+    // Back button / shared computer: never keep staff pages in any cache.
+    response.headers.set("Cache-Control", "no-store, max-age=0");
+  }
   return response;
 }

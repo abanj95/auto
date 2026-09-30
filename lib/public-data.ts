@@ -35,9 +35,19 @@ export function fullAddress(s: SiteSettings) {
   return [s.address, cityLine].filter(Boolean).join(", ");
 }
 
+/** Defense in depth (the DB and the settings form also enforce it): only https links render. */
+export function isHttpsUrl(value: string | null | undefined): value is string {
+  if (!value) return false;
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** Maps link: the saved URL, else a search for the street address (if known). */
 export function mapUrl(s: SiteSettings) {
-  if (s.google_maps_url) return s.google_maps_url;
+  if (s.google_maps_url && isHttpsUrl(s.google_maps_url)) return s.google_maps_url;
   if (!s.address) return null;
   const q = `${s.dealership_name}, ${fullAddress(s)}`;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;

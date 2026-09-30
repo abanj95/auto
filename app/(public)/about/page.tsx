@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { getSiteSettings } from "@/lib/public-data";
 import { siteImageUrl } from "@/lib/site-images";
 
-export const revalidate = 300;
-
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   return {
