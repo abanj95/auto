@@ -12,6 +12,7 @@ import {
 } from "@/app/(staff)/admin/(auth)/actions";
 import { EmailField } from "@/components/staff/email-field";
 import { FormAlert } from "@/components/staff/form-alert";
+import { useTurnstile } from "@/components/staff/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -82,6 +83,7 @@ function PasswordForm({
   onUseLink: (email: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const captcha = useTurnstile("login");
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: defaultEmail, password: "" },
@@ -91,7 +93,8 @@ function PasswordForm({
     onResult(null);
     startTransition(async () => {
       // On success the action redirects, so a result means it failed.
-      const result = await signInWithPassword(values, next);
+      const result = await signInWithPassword(values, next, captcha.token);
+      captcha.reset();
       onResult(result);
     });
   }
@@ -131,7 +134,13 @@ function PasswordForm({
             </FormItem>
           )}
         />
-        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
+        {captcha.widget}
+        <Button
+          type="submit"
+          size="lg"
+          className="h-11 w-full"
+          disabled={pending || (captcha.required && !captcha.token)}
+        >
           {pending ? "Signing in…" : "Sign in"}
         </Button>
         <Button
@@ -159,6 +168,7 @@ function MagicLinkForm({
   onUsePassword: (email: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const captcha = useTurnstile("magic_link");
   const form = useForm<EmailOnlyInput>({
     resolver: zodResolver(emailOnlySchema),
     defaultValues: { email: defaultEmail },
@@ -167,7 +177,8 @@ function MagicLinkForm({
   function onSubmit(values: EmailOnlyInput) {
     onResult(null);
     startTransition(async () => {
-      onResult(await sendMagicLink(values, next));
+      onResult(await sendMagicLink(values, next, captcha.token));
+      captcha.reset();
     });
   }
 
@@ -180,7 +191,13 @@ function MagicLinkForm({
         suppressHydrationWarning // Chrome on iOS adds autofill attributes.
       >
         <EmailField control={form.control} />
-        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
+        {captcha.widget}
+        <Button
+          type="submit"
+          size="lg"
+          className="h-11 w-full"
+          disabled={pending || (captcha.required && !captcha.token)}
+        >
           {pending ? "Sending…" : "Email me a sign-in link"}
         </Button>
         <Button

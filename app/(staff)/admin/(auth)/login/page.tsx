@@ -9,6 +9,9 @@ export const metadata: Metadata = { title: "Staff sign in" };
 const ERRORS: Record<string, string> = {
   disabled: DISABLED_MESSAGE,
   link: "That sign-in link is invalid or has expired. Request a new one.",
+  idle: "You were signed out after 30 minutes without activity.",
+  expired: "Your session reached its 12-hour limit. Please sign in again.",
+  ended: "Your session ended. Please sign in again.",
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/admin/login">) {

@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { requestPasswordReset, type ActionResult } from "@/app/(staff)/admin/(auth)/actions";
 import { EmailField } from "@/components/staff/email-field";
 import { FormAlert } from "@/components/staff/form-alert";
+import { useTurnstile } from "@/components/staff/turnstile";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { emailOnlySchema, type EmailOnlyInput } from "@/lib/validation/auth";
@@ -14,6 +15,7 @@ import { emailOnlySchema, type EmailOnlyInput } from "@/lib/validation/auth";
 export function ForgotPasswordForm() {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
+  const captcha = useTurnstile("password_reset");
   const form = useForm<EmailOnlyInput>({
     resolver: zodResolver(emailOnlySchema),
     defaultValues: { email: "" },
@@ -22,7 +24,8 @@ export function ForgotPasswordForm() {
   function onSubmit(values: EmailOnlyInput) {
     setResult(null);
     startTransition(async () => {
-      setResult(await requestPasswordReset(values));
+      setResult(await requestPasswordReset(values, captcha.token));
+      captcha.reset();
     });
   }
 
@@ -41,7 +44,13 @@ export function ForgotPasswordForm() {
           suppressHydrationWarning // Chrome on iOS adds autofill attributes.
         >
           <EmailField control={form.control} />
-          <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
+          {captcha.widget}
+          <Button
+            type="submit"
+            size="lg"
+            className="h-11 w-full"
+            disabled={pending || (captcha.required && !captcha.token)}
+          >
             {pending ? "Sending…" : "Send reset link"}
           </Button>
         </form>

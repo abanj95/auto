@@ -12,7 +12,7 @@ export default function ResetPasswordPage() {
     <Card>
       <CardHeader>
         <CardTitle className="text-xl">Set a new password</CardTitle>
-        <CardDescription>Use at least 8 characters.</CardDescription>
+        <CardDescription>Use at least 12 characters.</CardDescription>
       </CardHeader>
       <CardContent>
         <ResetPasswordForm />

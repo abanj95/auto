@@ -13,7 +13,7 @@ export default function WelcomePage() {
       <CardHeader>
         <CardTitle className="text-xl">Welcome to McRowin Auto</CardTitle>
         <CardDescription>
-          Choose a password for your staff account. Use at least 8 characters.
+          Choose a password for your staff account. Use at least 12 characters.
         </CardDescription>
       </CardHeader>
       <CardContent>

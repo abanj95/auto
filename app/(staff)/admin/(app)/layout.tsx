@@ -1,3 +1,4 @@
+import { IdleWatcher } from "@/components/staff/idle-watcher";
 import { BottomTabs, Sidebar } from "@/components/staff/staff-nav";
 import { TopBar } from "@/components/staff/top-bar";
 import { requireStaff } from "@/lib/auth";
@@ -18,6 +19,7 @@ export default async function StaffAppLayout({ children }: LayoutProps<"/admin">
         </main>
       </div>
       <BottomTabs isAdmin={isAdmin} />
+      <IdleWatcher />
     </div>
   );
 }
