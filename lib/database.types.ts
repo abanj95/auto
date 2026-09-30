@@ -8,6 +8,45 @@ export type Database = {
   };
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string;
+          alert: boolean;
+          created_at: string;
+          details: Json;
+          id: number;
+          ip: string | null;
+          target_id: string | null;
+          target_type: string | null;
+          user_agent: string | null;
+          user_id: string | null;
+        };
+        Insert: {
+          action: string;
+          alert?: boolean;
+          created_at?: string;
+          details?: Json;
+          id?: never;
+          ip?: string | null;
+          target_id?: string | null;
+          target_type?: string | null;
+          user_agent?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          action?: string;
+          alert?: boolean;
+          created_at?: string;
+          details?: Json;
+          id?: never;
+          ip?: string | null;
+          target_id?: string | null;
+          target_type?: string | null;
+          user_agent?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [];
+      };
       hero_slides: {
         Row: {
           active: boolean;
@@ -317,7 +356,33 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_age_staff_sessions: {
+        Args: {
+          p_age_seconds: number;
+          p_idle_seconds: number;
+          p_user_id: string;
+        };
+        Returns: undefined;
+      };
+      cleanup_security_tables: { Args: never; Returns: undefined };
+      end_other_staff_sessions: { Args: never; Returns: undefined };
+      end_staff_session: { Args: { p_reason?: string }; Returns: undefined };
+      end_user_staff_sessions: {
+        Args: { p_reason: string; p_user_id: string };
+        Returns: undefined;
+      };
+      login_locked_seconds: { Args: { p_email_hash: string }; Returns: number };
+      login_record_failure: { Args: { p_email_hash: string }; Returns: number };
+      login_record_success: {
+        Args: { p_email_hash: string };
+        Returns: undefined;
+      };
+      rate_limit_hit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number };
+        Returns: boolean;
+      };
       slugify: { Args: { value: string }; Returns: string };
+      touch_staff_session: { Args: never; Returns: string };
     };
     Enums: {
       user_role: "admin" | "poster";
