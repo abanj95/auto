@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { InviteDialog } from "@/components/staff/users/invite-dialog";
 import { UserActionsMenu } from "@/components/staff/users/user-actions-menu";
@@ -48,7 +49,12 @@ export default async function UsersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground">{staff.length} staff accounts</p>
+          <p className="text-sm text-muted-foreground">
+            {staff.length} staff accounts ·{" "}
+            <Link href="/admin/activity" className="underline underline-offset-4">
+              Activity log
+            </Link>
+          </p>
         </div>
         <InviteDialog />
       </div>

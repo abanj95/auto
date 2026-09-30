@@ -7,6 +7,8 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { AUTH_CONFIRM_PATH, RESET_PASSWORD_PATH, siteUrl } from "@/lib/auth-paths";
 import type { Enums } from "@/lib/database.types";
+import { audit } from "@/lib/security/audit";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { inviteSchema, type InviteInput } from "@/lib/validation/users";
@@ -42,12 +44,16 @@ function emailErrorMessage(error: { status?: number; code?: string; message: str
   return "Couldn't send the email. Use “Copy link” and text it instead.";
 }
 
-/** Guard for actions that change another person. */
-async function requireOtherUser(userId: string) {
+/** Guard for actions that change another person. Returns an error, or the acting admin's id. */
+async function requireOtherUser(
+  userId: string,
+): Promise<{ denied: { ok: false; error: string } } | { me: string }> {
   const { userId: me } = await requireAdmin();
-  if (!uuid.safeParse(userId).success) return fail("User not found.");
-  if (userId === me) return fail("You can't change your own access. Ask another admin.");
-  return null;
+  if (!uuid.safeParse(userId).success) return { denied: fail("User not found.") };
+  if (userId === me) {
+    return { denied: fail("You can't change your own access. Ask another admin.") };
+  }
+  return { me };
 }
 
 // ------------------------------------------------------------------ invite
@@ -61,11 +67,22 @@ export async function inviteStaff(
   input: InviteInput,
   mode: "email" | "link",
 ): Promise<UserActionResult<{ link: string | null }>> {
-  await requireAdmin();
+  const { userId: me } = await requireAdmin();
   const parsed = inviteSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
   const { name, email } = parsed.data;
+  if (!(await rateLimit(`invite:user:${me}`, 20, 60 * 60))) {
+    return fail("Too many invites in the last hour. Try again later.");
+  }
   const admin = createAdminClient();
+  const logInvite = () =>
+    audit({
+      action: "user_invited",
+      userId: me,
+      targetType: "user",
+      details: { email, name, via: mode },
+      alert: true,
+    });
 
   if (mode === "email") {
     const { error } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -73,6 +90,7 @@ export async function inviteStaff(
       redirectTo: `${siteUrl()}${AUTH_CONFIRM_PATH}?next=${encodeURIComponent(WELCOME_PATH)}`,
     });
     if (error) return fail(emailErrorMessage(error));
+    await logInvite();
     revalidatePath("/admin/users");
     return { ok: true, data: { link: null } };
   }
@@ -83,6 +101,7 @@ export async function inviteStaff(
     options: { data: { full_name: name } },
   });
   if (error) return fail(emailErrorMessage(error));
+  await logInvite();
   revalidatePath("/admin/users");
   return {
     ok: true,
@@ -100,7 +119,7 @@ export async function sendPasswordReset(
   userId: string,
   mode: "email" | "link",
 ): Promise<UserActionResult<{ link: string | null }>> {
-  await requireAdmin();
+  const { userId: me } = await requireAdmin();
   if (!uuid.safeParse(userId).success) return fail("User not found.");
   const admin = createAdminClient();
   const { data: found } = await admin.auth.admin.getUserById(userId);
@@ -113,6 +132,13 @@ export async function sendPasswordReset(
       redirectTo: `${siteUrl()}${AUTH_CONFIRM_PATH}?next=${encodeURIComponent(RESET_PASSWORD_PATH)}`,
     });
     if (error) return fail(emailErrorMessage(error));
+    await audit({
+      action: "password_reset_sent",
+      userId: me,
+      targetType: "user",
+      targetId: userId,
+      details: { via: "email" },
+    });
     return { ok: true, data: { link: null } };
   }
 
@@ -124,6 +150,13 @@ export async function sendPasswordReset(
   const link = accepted
     ? confirmLink(data.properties.hashed_token, "recovery", RESET_PASSWORD_PATH)
     : confirmLink(data.properties.hashed_token, "magiclink", WELCOME_PATH);
+  await audit({
+    action: "password_reset_sent",
+    userId: me,
+    targetType: "user",
+    targetId: userId,
+    details: { via: "link" },
+  });
   return { ok: true, data: { link } };
 }
 
@@ -135,8 +168,9 @@ export async function sendPasswordReset(
  * auth user so they can't sign in again or refresh their session.
  */
 export async function setUserActive(userId: string, active: boolean): Promise<UserActionResult> {
-  const denied = await requireOtherUser(userId);
-  if (denied) return denied;
+  const guard = await requireOtherUser(userId);
+  if ("denied" in guard) return guard.denied;
+  if (typeof active !== "boolean") return fail("Unknown change.");
 
   const supabase = await createClient();
   const { error } = await supabase.from("profiles").update({ active }).eq("id", userId);
@@ -156,6 +190,19 @@ export async function setUserActive(userId: string, active: boolean): Promise<Us
         : "Deactivated (they've lost access), but sign-in blocking failed. Try again.",
     );
   }
+  // Deactivation ends every session of theirs at once (the ban stops refreshes).
+  if (!active)
+    await createAdminClient().rpc("end_user_staff_sessions", {
+      p_user_id: userId,
+      p_reason: "deactivated",
+    });
+  await audit({
+    action: active ? "user_reactivated" : "user_deactivated",
+    userId: guard.me,
+    targetType: "user",
+    targetId: userId,
+    alert: true,
+  });
 
   revalidatePath("/admin/users");
   return { ok: true, data: null };
@@ -165,16 +212,68 @@ export async function setUserRole(
   userId: string,
   role: Enums<"user_role">,
 ): Promise<UserActionResult> {
-  const denied = await requireOtherUser(userId);
-  if (denied) return denied;
+  const guard = await requireOtherUser(userId);
+  if ("denied" in guard) return guard.denied;
   if (role !== "admin" && role !== "poster") return fail("Unknown role.");
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
   const { error } = await supabase.from("profiles").update({ role }).eq("id", userId);
   if (error) {
     console.error("setUserRole failed", error);
     return fail("Couldn't change the role. Please try again.");
   }
+  await audit({
+    action: "role_changed",
+    userId: guard.me,
+    targetType: "user",
+    targetId: userId,
+    details: { from: before?.role ?? null, to: role },
+    alert: true,
+  });
+  revalidatePath("/admin/users");
+  return { ok: true, data: null };
+}
+
+// ------------------------------------------------------------------ two-factor
+
+/**
+ * Recovery for a lost phone: removes the user's authenticator so they set up a
+ * new one at their next sign-in, and ends all their current sessions.
+ */
+export async function resetUserMfa(userId: string): Promise<UserActionResult> {
+  const guard = await requireOtherUser(userId);
+  if ("denied" in guard) return guard.denied;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.mfa.listFactors({ userId });
+  if (error) {
+    console.error("listFactors failed", error);
+    return fail("Couldn't reset two-step verification. Please try again.");
+  }
+  for (const factor of data.factors) {
+    const { error: deleteError } = await admin.auth.admin.mfa.deleteFactor({
+      userId,
+      id: factor.id,
+    });
+    if (deleteError) {
+      console.error("deleteFactor failed", deleteError);
+      return fail("Couldn't reset two-step verification. Please try again.");
+    }
+  }
+  await admin.rpc("end_user_staff_sessions", { p_user_id: userId, p_reason: "mfa_reset" });
+  await audit({
+    action: "mfa_reset",
+    userId: guard.me,
+    targetType: "user",
+    targetId: userId,
+    details: { factors_removed: data.factors.length },
+    alert: true,
+  });
   revalidatePath("/admin/users");
   return { ok: true, data: null };
 }

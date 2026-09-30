@@ -20,7 +20,7 @@ function useItems(isAdmin: boolean) {
 
 /** Fixed bottom tab bar, phones only. */
 export function BottomTabs({ isAdmin }: { isAdmin: boolean }) {
-  const items = useItems(isAdmin);
+  const items = useItems(isAdmin).filter((item) => !item.desktopOnly);
   return (
     <nav
       aria-label="Staff"

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireAdmin } from "@/lib/auth";
+import { audit } from "@/lib/security/audit";
 import type { TablesUpdate } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -55,6 +56,19 @@ function revalidateSite() {
   revalidatePath("/", "layout");
 }
 
+function logChange(
+  userId: string,
+  change: string,
+  details: Record<string, string | number | boolean | null> = {},
+) {
+  return audit({
+    action: "homepage_changed",
+    userId,
+    targetType: "homepage",
+    details: { change, ...details },
+  });
+}
+
 /**
  * Delete storage files that no slide or setting uses any more. Static files
  * ("/hero.jpg") are part of the site and never deleted. Best effort: a
@@ -85,7 +99,7 @@ async function removeUnusedFiles(supabase: Supabase, paths: (string | null | und
 // ------------------------------------------------------------------ slides
 
 export async function createSlide(values: SlideFormValues): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const parsed = slideSchema.safeParse(values);
   if (!parsed.success) return zodFail(parsed.error);
   const supabase = await createClient();
@@ -102,12 +116,13 @@ export async function createSlide(values: SlideFormValues): Promise<HomepageResu
     .insert({ ...parsed.data, sort_order: (rows[0]?.sort_order ?? -1) + 1 });
   if (error) return dbError(error);
 
+  await logChange(userId, "slide_added", { headline: parsed.data.headline });
   revalidateSite();
   return { ok: true };
 }
 
 export async function updateSlide(id: string, values: SlideFormValues): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   if (!uuid.safeParse(id).success) return fail("Slide not found.");
   const parsed = slideSchema.safeParse(values);
   if (!parsed.success) return zodFail(parsed.error);
@@ -129,22 +144,24 @@ export async function updateSlide(id: string, values: SlideFormValues): Promise<
       (p) => p !== parsed.data.image_path && p !== parsed.data.mobile_image_path,
     ),
   );
+  await logChange(userId, "slide_edited", { slide: id, headline: parsed.data.headline });
   revalidateSite();
   return { ok: true };
 }
 
 export async function setSlideActive(id: string, active: boolean): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   if (!uuid.safeParse(id).success || typeof active !== "boolean") return fail("Slide not found.");
   const supabase = await createClient();
   const { error } = await supabase.from("hero_slides").update({ active }).eq("id", id);
   if (error) return dbError(error);
+  await logChange(userId, "slide_shown_hidden", { slide: id, active });
   revalidateSite();
   return { ok: true };
 }
 
 export async function deleteSlide(id: string): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   if (!uuid.safeParse(id).success) return fail("Slide not found.");
   const supabase = await createClient();
 
@@ -157,13 +174,14 @@ export async function deleteSlide(id: string): Promise<HomepageResult> {
   if (error) return dbError(error);
 
   if (slide) await removeUnusedFiles(supabase, [slide.image_path, slide.mobile_image_path]);
+  await logChange(userId, "slide_deleted", { slide: id });
   revalidateSite();
   return { ok: true };
 }
 
 /** Save the order shown on screen (first = shown first). */
 export async function reorderSlides(orderedIds: string[]): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   if (!z.array(uuid).max(MAX_SLIDES).safeParse(orderedIds).success) {
     return fail("Couldn't save the slide order.");
   }
@@ -176,6 +194,7 @@ export async function reorderSlides(orderedIds: string[]): Promise<HomepageResul
   const failed = results.find((r) => r.error);
   if (failed?.error) return dbError(failed.error);
 
+  await logChange(userId, "slides_reordered", {});
   revalidateSite();
   return { ok: true };
 }
@@ -200,12 +219,16 @@ export async function discardUpload(path: string): Promise<HomepageResult> {
 export async function saveCarouselSettings(
   values: CarouselSettingsValues,
 ): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const parsed = carouselSettingsSchema.safeParse(values);
   if (!parsed.success) return zodFail(parsed.error);
   const supabase = await createClient();
   const { error } = await supabase.from("site_settings").update(parsed.data).eq("id", true);
   if (error) return dbError(error);
+  await logChange(userId, "carousel_settings", {
+    autoplay: parsed.data.hero_autoplay,
+    interval: parsed.data.hero_interval_seconds,
+  });
   revalidateSite();
   return { ok: true };
 }
@@ -215,7 +238,7 @@ export async function setBrandImage(
   key: BrandImageKey,
   path: string | null,
 ): Promise<HomepageResult> {
-  await requireAdmin();
+  const { userId } = await requireAdmin();
   const parsed = brandImageSchema.safeParse({ key, path });
   const column = parsed.data?.key as BrandImageKey;
   if (!parsed.success || (path && !path.startsWith(`${BRAND_IMAGES[column].folder}/`))) {
@@ -234,6 +257,7 @@ export async function setBrandImage(
   if (error) return dbError(error);
 
   if (before[column] !== parsed.data.path) await removeUnusedFiles(supabase, [before[column]]);
+  await logChange(userId, "brand_image", { image: column, removed: parsed.data.path === null });
   revalidateSite();
   return { ok: true };
 }

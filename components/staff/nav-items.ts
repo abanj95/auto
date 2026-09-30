@@ -1,10 +1,12 @@
-import { Car, CirclePlus, House, Settings, Users, type LucideIcon } from "lucide-react";
+import { Activity, Car, CirclePlus, House, Settings, Users, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
   adminOnly?: boolean;
+  /** Sidebar only (the phone tab bar has room for five); reachable from Users on phones. */
+  desktopOnly?: boolean;
   /** Extra check so /admin/vehicles doesn't also highlight on /admin/vehicles/new. */
   isActive: (pathname: string) => boolean;
 };
@@ -42,5 +44,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Users,
     adminOnly: true,
     isActive: (p) => p.startsWith("/admin/users"),
+  },
+  {
+    href: "/admin/activity",
+    label: "Activity",
+    icon: Activity,
+    adminOnly: true,
+    desktopOnly: true,
+    isActive: (p) => p.startsWith("/admin/activity"),
   },
 ];

@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireStaff } from "@/lib/auth";
-import type { Enums, TablesInsert } from "@/lib/database.types";
+import { Constants, type Enums, type TablesInsert } from "@/lib/database.types";
+import { audit } from "@/lib/security/audit";
 import { createClient } from "@/lib/supabase/server";
 import {
   MAX_PHOTOS,
@@ -84,12 +85,12 @@ export async function saveVehicle(input: {
   const supabase = await createClient();
   const isAdmin = staff.profile.role === "admin";
 
-  let current: SavedVehicle | null = null;
+  let current: (SavedVehicle & { price: number | null }) | null = null;
   if (input.id) {
     if (!uuid.safeParse(input.id).success) return fail("Vehicle not found.");
     const { data } = await supabase
       .from("vehicles")
-      .select(SAVED_COLUMNS)
+      .select(`${SAVED_COLUMNS}, price`)
       .eq("id", input.id)
       .maybeSingle();
     if (!data) return fail("Vehicle not found. It may have been deleted.");
@@ -123,16 +124,37 @@ export async function saveVehicle(input: {
   const { data, error } = await query.select(SAVED_COLUMNS).single();
   if (error) return dbError(error);
 
+  const target = { userId: staff.userId, targetType: "vehicle", targetId: data.id };
+  const label = { stock_no: data.stock_no };
+  if (!current) await audit({ action: "vehicle_created", ...target, details: label });
+  if (row.status === "available") {
+    await audit({ action: "vehicle_published", ...target, details: label });
+  }
+  if (current && "price" in row && row.price !== current.price) {
+    await audit({
+      action: "vehicle_price_changed",
+      ...target,
+      details: { ...label, old: current.price, new: row.price ?? null },
+    });
+  }
+
   revalidateVehicle(data.slug);
   return { ok: true, data };
 }
 
 /** Empty draft, so photos can be uploaded before any details are entered. */
 export async function createDraft(): Promise<ActionResult<SavedVehicle>> {
-  await requireStaff();
+  const staff = await requireStaff();
   const supabase = await createClient();
   const { data, error } = await supabase.from("vehicles").insert({}).select(SAVED_COLUMNS).single();
   if (error) return dbError(error);
+  await audit({
+    action: "vehicle_created",
+    userId: staff.userId,
+    targetType: "vehicle",
+    targetId: data.id,
+    details: { stock_no: data.stock_no, draft: true },
+  });
   revalidatePath("/admin/vehicles");
   return { ok: true, data };
 }
@@ -143,12 +165,20 @@ export async function setVehicleStatus(
   id: string,
   status: Enums<"vehicle_status">,
 ): Promise<ActionResult<SavedVehicle>> {
-  await requireStaff();
+  const staff = await requireStaff();
   if (!uuid.safeParse(id).success) return fail("Vehicle not found.");
+  if (!z.enum(Constants.public.Enums.vehicle_status).safeParse(status).success) {
+    return fail("Unknown status.");
+  }
   const supabase = await createClient();
 
   if (status !== "draft" && (await photoCount(supabase, id)) === 0) return fail(NEEDS_PHOTO);
 
+  const { data: before } = await supabase
+    .from("vehicles")
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
   const { data, error } = await supabase
     .from("vehicles")
     .update({ status })
@@ -156,19 +186,26 @@ export async function setVehicleStatus(
     .select(SAVED_COLUMNS)
     .single();
   if (error) return dbError(error);
+  await audit({
+    action: "vehicle_status_changed",
+    userId: staff.userId,
+    targetType: "vehicle",
+    targetId: id,
+    details: { stock_no: data.stock_no, from: before?.status ?? null, to: status },
+  });
   revalidateVehicle(data.slug);
   return { ok: true, data };
 }
 
 /** Any active staff member. Deletes the photo files first (the row delete cascades photo rows only). */
 export async function deleteVehicle(id: string): Promise<ActionResult> {
-  await requireStaff();
+  const staff = await requireStaff();
   if (!uuid.safeParse(id).success) return fail("Vehicle not found.");
   const supabase = await createClient();
 
   const { data: vehicle } = await supabase
     .from("vehicles")
-    .select("slug, vehicle_photos(storage_path)")
+    .select("slug, stock_no, year, make, model, price, status, vehicle_photos(storage_path)")
     .eq("id", id)
     .maybeSingle();
   if (!vehicle) return fail("Vehicle not found. It may already be deleted.");
@@ -181,6 +218,18 @@ export async function deleteVehicle(id: string): Promise<ActionResult> {
 
   const { error } = await supabase.from("vehicles").delete().eq("id", id);
   if (error) return dbError(error);
+  await audit({
+    action: "vehicle_deleted",
+    userId: staff.userId,
+    targetType: "vehicle",
+    targetId: id,
+    details: {
+      stock_no: vehicle.stock_no,
+      title: [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" "),
+      price: vehicle.price,
+      status: vehicle.status,
+    },
+  });
   revalidateVehicle(vehicle.slug);
   return { ok: true, data: null };
 }
@@ -210,69 +259,7 @@ export async function findVinDuplicate(
 
 // ------------------------------------------------------------------ photos
 
-const photoInput = z.object({
-  vehicleId: uuid,
-  path: z.string().regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(webp|jpg)$/),
-  width: z.number().int().positive().max(10000),
-  height: z.number().int().positive().max(10000),
-});
-
-export type SavedPhoto = {
-  id: string;
-  storage_path: string;
-  sort_order: number;
-  width: number;
-  height: number;
-};
-
-/** Record a photo that the browser already uploaded to Storage. */
-export async function addPhoto(
-  input: z.input<typeof photoInput>,
-): Promise<ActionResult<SavedPhoto>> {
-  await requireStaff();
-  const parsed = photoInput.safeParse(input);
-  if (!parsed.success || !parsed.data.path.startsWith(`${parsed.data.vehicleId}/`)) {
-    return fail("That photo couldn't be saved.");
-  }
-  const { vehicleId, path, width, height } = parsed.data;
-  const supabase = await createClient();
-
-  const { data: last } = await supabase
-    .from("vehicle_photos")
-    .select("sort_order")
-    .eq("vehicle_id", vehicleId)
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if ((await photoCount(supabase, vehicleId)) >= MAX_PHOTOS) {
-    return fail(`A vehicle can have up to ${MAX_PHOTOS} photos.`);
-  }
-
-  const { data, error } = await supabase
-    .from("vehicle_photos")
-    .insert({
-      vehicle_id: vehicleId,
-      storage_path: path,
-      width,
-      height,
-      sort_order: (last?.sort_order ?? -1) + 1,
-    })
-    .select("id, storage_path, sort_order, width, height, vehicles(slug)")
-    .single();
-  if (error) return dbError(error);
-
-  revalidateVehicle(data.vehicles?.slug);
-  return {
-    ok: true,
-    data: {
-      id: data.id,
-      storage_path: data.storage_path,
-      sort_order: data.sort_order,
-      width,
-      height,
-    },
-  };
-}
+// Photos are uploaded (and recorded) by POST /admin/api/uploads?kind=vehicle.
 
 export async function deletePhoto(photoId: string): Promise<ActionResult> {
   await requireStaff();

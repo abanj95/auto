@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
 
-import { getStaff } from "@/lib/auth";
+import { checkStaff } from "@/lib/auth";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { decodeVin } from "@/lib/nhtsa";
 import { normalizeVin } from "@/lib/validation/vehicle";
 
 /** GET /admin/api/vin/{vin} → { ok, data } — staff only. Prefill data from NHTSA. */
 export async function GET(_request: Request, ctx: RouteContext<"/admin/api/vin/[vin]">) {
-  const staff = await getStaff();
-  if (!staff?.profile?.active) {
-    return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });
+  const auth = await checkStaff();
+  if ("error" in auth) {
+    return NextResponse.json({ ok: false, error: "Not signed in." }, { status: auth.error });
+  }
+  // 60 lookups per 10 minutes per user (each one calls NHTSA).
+  if (!(await rateLimit(`vin:user:${auth.staff.userId}`, 60, 10 * 60))) {
+    return NextResponse.json(
+      { ok: false, error: "Too many VIN lookups. Wait a few minutes." },
+      { status: 429 },
+    );
   }
 
   const vin = normalizeVin((await ctx.params).vin);
