@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
-  aal1Client,
   admin,
   createStaff,
   deleteStaff,
@@ -10,6 +9,7 @@ import {
   sharedStaff,
   staffClient,
   type TestStaff,
+  unregisteredClient,
 } from "./helpers/staff";
 
 // Database rules (RLS, grants, triggers) straight through the Supabase API,
@@ -156,10 +156,10 @@ test.describe("database access rules", () => {
     expect(serviceDelete).not.toBeNull();
   });
 
-  test("password without two-factor (aal1): no staff access", async () => {
-    const db = await aal1Client(poster);
+  test("token without a staff session (never touched): no staff access", async () => {
+    const db = await unregisteredClient(poster);
     expect((await db.from("vehicles").select("id").eq("id", draftId)).data).toEqual([]);
-    const { error } = await db.from("vehicles").insert({ make: "Rlstest", model: "Aal1" });
+    const { error } = await db.from("vehicles").insert({ make: "Rlstest", model: "Nosession" });
     expect(error).not.toBeNull();
   });
 

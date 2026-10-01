@@ -4,8 +4,8 @@ import { chromium, type FullConfig } from "@playwright/test";
 
 import { AUTH_DIR, createStaff, hasSupabase, signIn, type TestStaff } from "./helpers/staff";
 
-// One admin and one poster (with two-factor) for the whole run, signed in once.
-// Supabase Auth rate-limits token/MFA verifications per IP, so tests reuse
+// One admin and one poster for the whole run, signed in once.
+// Supabase Auth rate-limits token verifications per IP, so tests reuse
 // these browser sessions instead of signing in again. Tests that end a
 // session on purpose create their own user.
 export default async function globalSetup(config: FullConfig) {

@@ -41,7 +41,6 @@ app/
       vehicles/       List (status chips, search), new, [id] edit; actions.ts = all vehicle/photo server actions
     api/vin/[vin]/    Staff-only NHTSA vPIC lookup (prefill)
     api/uploads/      The only way images reach Storage (checked + re-encoded)
-    (auth)/mfa/       Two-step verification (TOTP enrolment / code)
       (admin-only)/   Admin-only pages (homepage, settings, users, activity) — default home for new pages
 components/
   ui/                 shadcn/ui components (generated; edit sparingly)
@@ -125,8 +124,8 @@ docs/restore.md       Nightly backups (GitHub Actions) and how to restore
 - Autosave every 10s for drafts only; listed cars use "Save changes" (never auto-publish edits).
 - Every vehicle/photo change calls `revalidatePath` for `/`, `/inventory`, `/inventory/[slug]`.
 - Deleting a vehicle removes its storage files first (any staff member).
-- E2E tests use a shared admin + poster with two-factor (created and signed in once by
-  `tests/e2e/global-setup.ts`, removed by global-teardown) — Supabase Auth rate-limits token/MFA
+- E2E tests use a shared admin + poster (created and signed in once by
+  `tests/e2e/global-setup.ts`, removed by global-teardown) — Supabase Auth rate-limits token
   verifications per IP. Tests that end sessions create their own user. Need `SUPABASE_SECRET_KEY`.
 - Next 16: use `preload` / `loading="eager"` on images, not the deprecated `priority`.
 
@@ -190,16 +189,17 @@ Full audit, fixes and the manual settings checklist: `docs/security-audit.md`. B
 ### Access (database — the final guard)
 
 Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `private.is_admin()`
-(not exposed via the API) require `profiles.active`, **two-factor (JWT `aal = aal2`)** and a **live
-staff session** (`private.staff_sessions`: not ended, idle ≤ 30 min, signed in ≤ 12 h). So every
-staff RLS rule enforces MFA and session limits, even for someone with a valid token.
+(not exposed via the API) require `profiles.active` and a **live staff session**
+(`private.staff_sessions`: not ended, idle ≤ 30 min, signed in ≤ 12 h). So every staff RLS rule
+enforces session limits, even for someone with a valid token. No two-factor (removed by decision,
+migration 017).
 
-| Who                      | vehicles                                     | vehicle_photos + storage files           | profiles           | site_settings / hero_slides | audit_log |
-| ------------------------ | -------------------------------------------- | ---------------------------------------- | ------------------ | --------------------------- | --------- |
-| Public (anon)            | Read available / pending / sold (not drafts) | Read photos of those; files by URL       | —                  | Read (live slides only)     | —         |
-| Poster (aal2, live)      | Read all, create, edit, mark sold, delete    | Read, edit, delete rows; delete files    | Read own row       | Read                        | —         |
-| Admin (aal2, live)       | Same as poster + change `featured`           | Same as poster; delete site-images files | Read all, edit all | Read, edit                  | Read      |
-| No MFA / idle / inactive | Same as public                               | Same as public                           | Read own row       | Read                        | —         |
+| Who                   | vehicles                                     | vehicle_photos + storage files           | profiles           | site_settings / hero_slides | audit_log |
+| --------------------- | -------------------------------------------- | ---------------------------------------- | ------------------ | --------------------------- | --------- |
+| Public (anon)         | Read available / pending / sold (not drafts) | Read photos of those; files by URL       | —                  | Read (live slides only)     | —         |
+| Poster (live session) | Read all, create, edit, mark sold, delete    | Read, edit, delete rows; delete files    | Read own row       | Read                        | —         |
+| Admin (live session)  | Same as poster + change `featured`           | Same as poster; delete site-images files | Read all, edit all | Read, edit                  | Read      |
+| Idle / inactive       | Same as public                               | Same as public                           | Read own row       | Read                        | —         |
 
 - **Nobody** uploads to Storage from the browser: only `POST /admin/api/uploads` (secret key, after
   checks). No SVG anywhere. Buckets are public by URL, not listable, never overwritten.
@@ -219,16 +219,15 @@ staff RLS rule enforces MFA and session limits, even for someone with a valid to
 ### Staff auth (app layer)
 
 1. `proxy.ts` (`lib/supabase/middleware.ts`): per-request CSP nonce + headers; `/admin/**`
-   signed out → login; no two-factor → `/admin/mfa`; > 12 h since sign-in → signed out;
+   signed out → login; > 12 h since sign-in → signed out;
    `/admin/api/*` answers 401 instead of redirecting. Optimistic only.
 2. **Every** staff page and server action starts with `await requireStaff()` /
    `await requireAdmin()`; route handlers use `checkStaff()`. They verify the JWT (`getClaims()`,
-   never `getSession()`), the active profile, aal2, and touch the server-side session (idle → signed
+   never `getSession()`), the active profile, and touch the server-side session (idle → signed
    out with `?error=idle`). Layout checks don't protect pages or actions.
 3. RLS (above).
 
-- Sign-in: password or magic link → `/admin/mfa` (TOTP enrolment with QR on first sign-in, then a
-  code). Lost phone → an admin uses "Reset two-step verification" on the Users page.
+- Sign-in: password or magic link (both logged as "Signed in" in the activity log). No two-factor.
 - Login protection: Turnstile (when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set; Supabase verifies it),
   20 attempts/IP/15 min, 5 failures lock an account for 15 min, email links 5/IP/15 min and
   3/email/hour, generic messages only ("Invalid email or password", "If that email exists…").

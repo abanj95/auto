@@ -1,13 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import {
-  allowsAal1,
-  isProtectedAdminPath,
-  LOGIN_PATH,
-  MFA_PATH,
-  SIGN_OUT_PATH,
-} from "@/lib/auth-paths";
+import { isProtectedAdminPath, LOGIN_PATH, SIGN_OUT_PATH } from "@/lib/auth-paths";
 import type { Database } from "@/lib/database.types";
 import { buildCsp, createNonce } from "@/lib/security/csp";
 import { MAX_SESSION_MS } from "@/lib/security/session-limits";
@@ -17,8 +11,8 @@ import { MAX_SESSION_MS } from "@/lib/security/session-limits";
  * 1. Content-Security-Policy with a per-request nonce (Next.js applies it to
  *    its own scripts; the root layout reads it from x-nonce).
  * 2. Refreshes the Supabase session and forwards updated auth cookies.
- * 3. Staff area: signed out → login; no two-factor yet → /admin/mfa; signed in
- *    more than 12 hours ago → signed out. Pages, actions and RLS check again
+ * 3. Staff area: signed out → login; signed in more than 12 hours ago → signed
+ *    out. Pages, actions and RLS check again
  *    (this is the fast first gate, not the only one).
  */
 export async function updateSession(request: NextRequest) {
@@ -90,8 +84,6 @@ export async function updateSession(request: NextRequest) {
     if (signedInAt && Date.now() - signedInAt > MAX_SESSION_MS) {
       return deny(SIGN_OUT_PATH, { reason: "expired" });
     }
-
-    if (claims.aal !== "aal2" && !allowsAal1(pathname)) return deny(MFA_PATH, nextParam);
   }
 
   return withHeaders(response, csp, pathname.startsWith("/admin"));

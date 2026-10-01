@@ -24,9 +24,9 @@ missing browser security headers, and no audit trail.
 
 ### High
 
-| ID  | Finding                                                                                                                             | Where                                                      | How it could be exploited                                                                                                                  | Proposed fix                                                                                                                                                                                                               | Status                                                                                                                                                                                                                         |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| H1  | **No multi-factor authentication.** Staff sign in with a password only. Admins can invite users, change roles, edit the whole site. | `app/(staff)/admin/(auth)/actions.ts:40`, `lib/auth.ts:34` | A phished, reused or guessed admin password gives full control: create a new admin, lock out the owner, deface the site, delete inventory. | Supabase TOTP MFA for all staff (admins and posters). Require `aal2` in `proxy.ts`, in `requireStaff()`/`requireAdmin()`, and in RLS for writes. Enrollment with QR code; recovery by an admin resetting a user's factors. | **Fixed.** TOTP required for all staff (`/admin/mfa`, QR enrolment); aal2 enforced in the proxy, `requireStaff`/`checkStaff` and all staff RLS; admin "Reset two-step verification". Tests: `rls.spec.ts`, `security.spec.ts`. |
+| ID  | Finding                                                                                                                             | Where                                                      | How it could be exploited                                                                                                                  | Proposed fix                                                                                                                                                                                                               | Status                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| H1  | **No multi-factor authentication.** Staff sign in with a password only. Admins can invite users, change roles, edit the whole site. | `app/(staff)/admin/(auth)/actions.ts:40`, `lib/auth.ts:34` | A phished, reused or guessed admin password gives full control: create a new admin, lock out the owner, deface the site, delete inventory. | Supabase TOTP MFA for all staff (admins and posters). Require `aal2` in `proxy.ts`, in `requireStaff()`/`requireAdmin()`, and in RLS for writes. Enrollment with QR code; recovery by an admin resetting a user's factors. | **Accepted (A10).** TOTP was built, then removed by decision (2026-09-30, migration 017). |
 
 ### Medium
 
@@ -124,18 +124,19 @@ missing browser security headers, and no audit trail.
 | ID  | Item                                                                                        | Why it's accepted                                                                                                                                     |
 | --- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A1  | Per-IP limits use `x-real-ip` / `x-forwarded-for`.                                          | Vercel sets these itself, so they're trustworthy there; on other hosts they could be spoofed. The per-account lockout doesn't depend on the IP.       |
-| A2  | Anyone who knows a staff email can lock that account for 15 minutes with 5 wrong passwords. | Requested lockout policy. The owner can still sign in with an email link (plus two-factor) while locked. Every lock is flagged on `/admin/activity`.  |
+| A2  | Anyone who knows a staff email can lock that account for 15 minutes with 5 wrong passwords. | Requested lockout policy. The owner can still sign in with an email link while locked. Every lock is flagged on `/admin/activity`.                    |
 | A3  | Every page renders on each request (no CDN caching of HTML).                                | Required for nonce-based CSP without `unsafe-inline`. It's about 4 fast Supabase reads per view, fine at dealership traffic. Images are still cached. |
 | A4  | `style-src 'unsafe-inline'`.                                                                | Needed by Next.js fonts, Radix and style attributes. Inline _scripts_ are still blocked, and that's where the XSS risk is.                            |
 | A5  | `public.admin_age_staff_sessions()` exists in the production database.                      | Only the secret-key role can run it, and that role can already do anything. It lets tests prove the server-side session limits.                       |
 | A6  | E2E and RLS tests run against the one (live) Supabase project.                              | There's no staging project yet. Tests create and delete their own users and data. A free staging project is recommended (then set `RUN_E2E` in CI).   |
 | A7  | No email alerts.                                                                            | Skipped by decision (it needs an email service). Alerts are flagged and filterable on `/admin/activity`.                                              |
-| A8  | No leaked-password check (HaveIBeenPwned).                                                  | That Supabase feature needs the Pro plan. Mitigated by the 12-character minimum, required two-factor and the lockout.                                 |
+| A8  | No leaked-password check (HaveIBeenPwned).                                                  | That Supabase feature needs the Pro plan. Mitigated by the 12-character minimum and the lockout.                                                      |
 | A9  | Photo files aren't in the nightly backups.                                                  | The backup covers the database. See `docs/restore.md` for downloading buckets.                                                                        |
+| A10 | No two-factor (H1). Staff sign in with a password or an email link only.                    | Removed by decision (2026-09-30). Mitigated by the 12-character minimum, lockout, captcha, session limits and new-device alerts on `/admin/activity`. |
 
 ## Manual settings checklist (in order)
 
-Supabase plan: **Free**. Available on Free: TOTP MFA, captcha, password rules, JWT expiry,
+Supabase plan: **Free**. Available on Free: captcha, password rules, JWT expiry,
 rate limits. **Pro only:** leaked-password protection, session time-box / inactivity timeout,
 daily backups. The app enforces the session limits itself either way.
 
@@ -161,7 +162,7 @@ daily backups. The app enforces the session limits itself either way.
    - Password requirements: letters + digits (optional).
    - _Leaked password protection_: turn on if you upgrade to Pro.
 2. **Authentication → Attack Protection** → _Enable CAPTCHA protection_ → provider **Turnstile** → paste the Turnstile **secret key**. Do this _after_ the Vercel site key is deployed, or sign-in breaks.
-3. **Authentication → Multi-Factor** → TOTP (App Authenticator): **Enabled** (the default).
+3. **Authentication → Multi-Factor**: not used by the app (two-factor removed); leave as is.
 4. **Access token (JWT) expiry**: **900** seconds (default 3600), under Authentication → Sessions / JWT settings. The proxy refreshes tokens automatically.
 5. **Authentication → Sessions** (Pro only, optional): Time-box **12 h**, Inactivity timeout **30 min**.
 6. **Authentication → URL Configuration**:
@@ -172,9 +173,9 @@ daily backups. The app enforces the session limits itself either way.
 ### 4. Test the preview, then merge
 
 1. `git push -u origin security-hardening` → open the Vercel preview.
-2. Sign in: you'll be asked to set up your authenticator app (QR code). Keep the app safe; another admin can reset it if the phone is lost.
+2. Sign in with your password or an email link.
 3. Try it out: post a car with photos, edit the homepage, open `/admin/activity`, leave a tab idle.
-4. Merge the PR into `main` → production deploy. Then ask Roger (and any other staff) to set up two-factor at their next sign-in.
+4. Merge the PR into `main` → production deploy.
 
 ### 5. GitHub (repo → Settings)
 

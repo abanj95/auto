@@ -7,7 +7,6 @@ import {
   hasSupabase,
   signIn,
   STATE,
-  totp,
   type TestStaff,
 } from "./helpers/staff";
 
@@ -53,26 +52,11 @@ test.describe("staff security", () => {
   });
   test.afterAll(async () => deleteStaff(user));
 
-  test("admin pages need two-factor: a password-only session is sent to /admin/mfa", async ({
-    page,
-  }) => {
-    const { data, error } = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: user!.email,
-    });
-    if (error) throw error;
-    const params = new URLSearchParams({
-      token_hash: data.properties.hashed_token,
-      type: "magiclink",
-      next: "/admin/users",
-    });
-    await page.goto(`/admin/auth/confirm?${params}`);
-    await expect(page).toHaveURL(/\/admin\/mfa\?next=%2Fadmin%2Fusers$/);
+  test("signed out: admin pages go to login and the upload API refuses", async ({ page }) => {
     for (const path of ["/admin", "/admin/users", "/admin/activity", "/admin/vehicles/new"]) {
       await page.goto(path);
-      await expect(page).toHaveURL(/\/admin\/mfa/);
+      await expect(page).toHaveURL(/\/admin\/login/);
     }
-    // The upload API refuses too.
     const res = await page.request.post("/admin/api/uploads?kind=logo", {
       headers: { origin: new URL(page.url()).origin, "content-type": "image/png" },
       data: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
@@ -80,7 +64,7 @@ test.describe("staff security", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("after two-factor, redirects stay on this site", async ({ page }) => {
+  test("after sign-in, redirects stay on this site", async ({ page }) => {
     await signIn(page, user!, "/admin/users");
     await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
   });
@@ -165,11 +149,11 @@ test.describe("staff security", () => {
     await expect(second).toHaveURL(/\/admin\/login$/);
   });
 
-  test("activity log records sign-ins and two-factor", async ({ browser }) => {
+  test("activity log records sign-ins", async ({ browser }) => {
     const context = await browser.newContext({ storageState: STATE.admin });
     const page = await context.newPage();
     await page.goto("/admin/activity");
-    await expect(page.getByTestId("activity-list")).toContainText("Two-factor check passed");
+    await expect(page.getByTestId("activity-list")).toContainText("Signed in");
     await context.close();
   });
 });
@@ -219,17 +203,13 @@ test.describe("login protection", () => {
     }
   });
 
-  test("a correct password still needs the authenticator code", async ({ page }) => {
+  test("a correct password signs in, and an unsafe next goes to /admin", async ({ page }) => {
     const user = await createStaff("poster", "E2E Password");
     try {
       await page.goto("/admin/login?next=%2F%2Fevil.example", { waitUntil: "networkidle" });
       await page.getByLabel("Email").fill(user.email);
       await page.getByLabel("Password").fill(user.password);
       await page.getByRole("button", { name: "Sign in" }).click();
-      await expect(page).toHaveURL(/\/admin\/mfa\?next=%2Fadmin$/); // Unsafe next → /admin.
-      await page.waitForLoadState("networkidle");
-      await page.getByLabel("Code").fill(totp(user.totpSecret));
-      await page.getByRole("button", { name: "Verify" }).click();
       await expect(page).toHaveURL(/\/admin$/);
     } finally {
       await deleteStaff(user);

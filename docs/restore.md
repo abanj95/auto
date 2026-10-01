@@ -63,10 +63,9 @@ psql "$TARGET_DB_URL" \
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` in Vercel and
    `.env.local`, redeploy, then `supabase link --project-ref <new-ref>`.
 4. Re-apply the manual settings in the new project (Auth URL configuration,
-   captcha, MFA, rate limits — see the checklist in `docs/security-audit.md`) and
+   captcha, rate limits — see the checklist in `docs/security-audit.md`) and
    re-upload photos if needed.
-5. Staff sign in with their existing passwords; two-factor apps keep working
-   (factors are part of the `auth` schema).
+5. Staff sign in with their existing passwords (users are part of the `auth` schema).
 
 To restore a **single table** instead, restore into a scratch project as above,
 then copy the rows you need across with `psql` / the SQL editor.

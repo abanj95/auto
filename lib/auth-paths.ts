@@ -5,15 +5,6 @@ export const DASHBOARD_PATH = "/admin";
 export const RESET_PASSWORD_PATH = "/admin/reset-password";
 export const AUTH_CONFIRM_PATH = "/admin/auth/confirm";
 export const SIGN_OUT_PATH = "/admin/auth/signout";
-export const MFA_PATH = "/admin/mfa";
-
-// Need a session but not two-factor yet: finishing sign-in (MFA), and setting a
-// password from an invite or reset link. Everything else needs aal2.
-const AAL1_PATHS = [MFA_PATH, "/admin/welcome", RESET_PASSWORD_PATH];
-
-export function allowsAal1(pathname: string) {
-  return AAL1_PATHS.includes(pathname);
-}
 
 // Reachable without a session. Everything else under /admin requires one.
 const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/forgot-password"];

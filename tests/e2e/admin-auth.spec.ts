@@ -11,7 +11,7 @@ test("visiting /admin while logged out redirects to /admin/login", async ({ page
 test.describe("poster", () => {
   test.skip(!hasSupabase, "needs Supabase keys in .env.local");
 
-  // The run's shared poster (with two-factor), already signed in (global-setup.ts).
+  // The run's shared poster, already signed in (global-setup.ts).
   test.use({ storageState: STATE.poster });
 
   test("a poster sees Homepage/Settings/Users greyed out and cannot open them", async ({

@@ -7,7 +7,6 @@ import { DISABLED_MESSAGE } from "@/lib/auth";
 import {
   AUTH_CONFIRM_PATH,
   DASHBOARD_PATH,
-  MFA_PATH,
   RESET_PASSWORD_PATH,
   safeAdminPath,
   siteUrl,
@@ -121,9 +120,7 @@ export async function signInWithPassword(
     alert: newDevice,
   });
 
-  // Two-factor comes next (the proxy would send them there anyway).
-  const target = safeAdminPath(next);
-  redirect(`${MFA_PATH}?next=${encodeURIComponent(target)}`);
+  redirect(safeAdminPath(next));
 }
 
 // ------------------------------------------------------------------ email links
@@ -214,23 +211,4 @@ export async function updatePassword(input: ResetPasswordInput): Promise<ActionR
   await audit({ action: "password_changed", userId, targetType: "user", targetId: userId });
 
   redirect(DASHBOARD_PATH);
-}
-
-// ------------------------------------------------------------------ two-factor
-
-/**
- * Called by the MFA page after the browser verified a code (enrolment or
- * sign-in). Only logs; the session's aal2 comes from Supabase itself.
- */
-export async function recordMfa(kind: "enrolled" | "verified"): Promise<void> {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
-  if (!claims?.sub || claims.aal !== "aal2") return;
-  await audit({
-    action: kind === "enrolled" ? "mfa_enrolled" : "mfa_verified",
-    userId: claims.sub,
-    targetType: "user",
-    targetId: claims.sub,
-  });
 }

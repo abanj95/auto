@@ -3,7 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
-import { DASHBOARD_PATH, LOGIN_PATH, MFA_PATH, SIGN_OUT_PATH } from "@/lib/auth-paths";
+import { DASHBOARD_PATH, LOGIN_PATH, SIGN_OUT_PATH } from "@/lib/auth-paths";
 import type { Tables } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,7 +16,7 @@ export const DENIED_PARAM = "denied";
 export type SessionStatus = "ok" | "idle" | "expired" | "ended" | "none";
 
 /**
- * Current user, profile, MFA level and staff-session status, or null when
+ * Current user, profile and staff-session status, or null when
  * signed out. Cached per request. Uses getClaims() (verified JWT), never
  * getSession(). Touching the session also records activity for the idle limit.
  */
@@ -27,23 +27,18 @@ export const getStaff = cache(async () => {
   const userId = claims?.sub;
   if (!claims || !userId) return null;
 
-  const aal2 = claims.aal === "aal2";
   const [{ data: profile }, session] = await Promise.all([
     supabase.from("profiles").select("id, full_name, role, active").eq("id", userId).maybeSingle(),
-    // Only count activity once the user has passed two-factor.
-    aal2
-      ? supabase.rpc("touch_staff_session").then(({ data, error }) => {
-          if (error) console.error("touch_staff_session failed", error.code);
-          return (data ?? "none") as SessionStatus;
-        })
-      : Promise.resolve<SessionStatus>("none"),
+    supabase.rpc("touch_staff_session").then(({ data, error }) => {
+      if (error) console.error("touch_staff_session failed", error.code);
+      return (data ?? "none") as SessionStatus;
+    }),
   ]);
 
   return {
     userId,
     email: claims.email,
     sessionId: (claims.session_id as string | undefined) ?? null,
-    aal2,
     session,
     profile,
   };
@@ -52,13 +47,12 @@ export const getStaff = cache(async () => {
 /**
  * Call at the top of every staff page and server action. Layout checks alone
  * are not enough: they don't stop pages or actions from running. Requires an
- * active profile, two-factor (aal2) and a live session (not idle / expired).
+ * active profile and a live session (not idle / expired).
  */
 export async function requireStaff() {
   const staff = await getStaff();
   if (!staff) redirect(LOGIN_PATH);
   if (!staff.profile?.active) redirect(`${SIGN_OUT_PATH}?reason=disabled`);
-  if (!staff.aal2) redirect(MFA_PATH);
   if (staff.session !== "ok") redirect(`${SIGN_OUT_PATH}?reason=${sessionReason(staff.session)}`);
   return { ...staff, profile: staff.profile };
 }
@@ -81,7 +75,7 @@ export async function checkStaff(
   role?: "admin",
 ): Promise<{ error: 401 | 403 } | { staff: CheckedStaff }> {
   const staff = await getStaff();
-  if (!staff || !staff.profile?.active || !staff.aal2 || staff.session !== "ok") {
+  if (!staff || !staff.profile?.active || staff.session !== "ok") {
     return { error: 401 };
   }
   if (role === "admin" && staff.profile.role !== "admin") return { error: 403 };

@@ -14,7 +14,6 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
-  resetUserMfa,
   sendPasswordReset,
   setUserActive,
   setUserRole,
@@ -130,24 +129,6 @@ export function UserActionsMenu({ user, isSelf }: { user: StaffUser; isSelf: boo
               >
                 {other === "admin" ? <ShieldCheck aria-hidden /> : <ShieldOff aria-hidden />}
                 {other === "admin" ? "Make admin" : "Make poster"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="h-11"
-                onSelect={() =>
-                  setConfirm({
-                    title: `Reset ${user.name}'s two-step verification?`,
-                    description:
-                      "Use this if they lost their phone. They'll be signed out and set up their authenticator app again at their next sign-in.",
-                    label: "Reset two-step",
-                    run: () =>
-                      run(
-                        () => resetUserMfa(user.id),
-                        `${user.name} will set up two-step verification again.`,
-                      ),
-                  })
-                }
-              >
-                <KeyRound aria-hidden /> Reset two-step verification
               </DropdownMenuItem>
               {user.active ? (
                 <DropdownMenuItem
