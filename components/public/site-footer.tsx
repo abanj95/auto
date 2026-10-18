@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Container } from "@/components/public/container";
 import { HoursList } from "@/components/public/hours-list";
 import { Logo } from "@/components/public/logo";
-import { NAV_LINKS } from "@/components/public/nav-links";
+import { LEGAL_LINKS, NAV_LINKS } from "@/components/public/nav-links";
 import { phoneHref, smsHref } from "@/lib/format";
 import { fullAddress, getSiteSettings, isHttpsUrl, mapUrl } from "@/lib/public-data";
 
@@ -85,8 +85,18 @@ export async function SiteFooter() {
           ))}
         </nav>
       </Container>
-      <Container className="border-t border-white/10 py-6 text-xs text-neutral-500">
-        © {new Date().getFullYear()} {s.dealership_name}. All rights reserved.
+      <Container className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/10 py-6 text-xs text-neutral-500">
+        <span>
+          © {new Date().getFullYear()} {s.dealership_name}
+        </span>
+        {LEGAL_LINKS.map((link) => (
+          <span key={link.href} className="flex items-center gap-3">
+            <span aria-hidden>|</span>
+            <Link href={link.href} className="py-2 hover:text-white">
+              {link.label}
+            </Link>
+          </span>
+        ))}
       </Container>
     </footer>
   );

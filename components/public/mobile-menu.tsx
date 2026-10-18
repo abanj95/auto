@@ -4,7 +4,7 @@ import { Menu, Phone } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { NAV_LINKS } from "@/components/public/nav-links";
+import { LEGAL_LINKS, NAV_LINKS } from "@/components/public/nav-links";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -28,6 +28,18 @@ export function MobileMenu({ phone, telHref }: { phone: string | null; telHref: 
               href={link.href}
               onClick={() => setOpen(false)}
               className="border-b py-4 text-lg font-semibold"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+        <nav aria-label="Legal" className="flex gap-4 px-4 text-sm text-muted-foreground">
+          {LEGAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setOpen(false)}
+              className="py-2 underline-offset-4 hover:underline"
             >
               {link.label}
             </Link>
