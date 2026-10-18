@@ -12,7 +12,7 @@ import {
 } from "@/app/(staff)/admin/(auth)/actions";
 import { EmailField } from "@/components/staff/email-field";
 import { FormAlert } from "@/components/staff/form-alert";
-import { useTurnstile } from "@/components/staff/turnstile";
+import { useTurnstile } from "@/components/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,

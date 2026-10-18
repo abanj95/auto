@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { NextResponse, type NextRequest } from "next/server";
 
+import { purgeClosedRequests } from "@/lib/purge-requests";
 import { purgeSoldVehicles } from "@/lib/purge-sold";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -14,7 +15,8 @@ function authorized(header: string | null, secret: string | undefined) {
 
 /**
  * Daily job (vercel.json cron): permanently delete cars sold more than 31 days
- * ago, and clear old rate-limit / session rows. Vercel sends
+ * ago and Vehicle Finder requests closed more than 12 months ago, and clear old
+ * rate-limit / session rows. Vercel sends
  * `Authorization: Bearer $CRON_SECRET`; anything else is rejected.
  */
 export async function GET(request: NextRequest) {
@@ -23,9 +25,10 @@ export async function GET(request: NextRequest) {
   }
   try {
     const result = await purgeSoldVehicles();
+    const requests = await purgeClosedRequests();
     const { error } = await createAdminClient().rpc("cleanup_security_tables");
     if (error) console.error("cleanup_security_tables failed", error.code);
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, ...result, ...requests });
   } catch (error) {
     console.error("purge-sold failed", error);
     return NextResponse.json({ ok: false, error: "Purge failed" }, { status: 500 });

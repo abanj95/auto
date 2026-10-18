@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// Cloudflare Turnstile (bot check) for login, magic link and password reset.
-// Supabase Auth verifies the token (Dashboard → Auth → Attack Protection).
+// Cloudflare Turnstile (bot check) for login, magic link, password reset and
+// the Vehicle Finder. Supabase Auth verifies sign-in tokens (Dashboard → Auth →
+// Attack Protection); lib/security/turnstile.ts verifies the Vehicle Finder's.
 // With no NEXT_PUBLIC_TURNSTILE_SITE_KEY (local dev) nothing is rendered.
 
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
