@@ -17,6 +17,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
+  // The dev server compiles each page on first visit; under a full parallel run
+  // that can take longer than the default 5 s.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
