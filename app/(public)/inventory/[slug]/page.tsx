@@ -1,5 +1,23 @@
-import { ArrowDown } from "lucide-react";
+import {
+  Armchair,
+  ArrowDown,
+  ArrowLeft,
+  CarFront,
+  Check,
+  CircleDot,
+  Cog,
+  FileCheck,
+  Fuel,
+  Gauge,
+  Hash,
+  Palette,
+  ScanBarcode,
+  Search,
+  Settings2,
+  type LucideIcon,
+} from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Container } from "@/components/public/container";
@@ -27,6 +45,7 @@ import {
   getVehicleBySlug,
   type VehicleDetail,
 } from "@/lib/public-data";
+import { cn } from "@/lib/utils";
 
 function fullTitle(v: VehicleDetail) {
   return [vehicleTitle(v), v.trim].filter(Boolean).join(" ");
@@ -80,15 +99,26 @@ export default async function VehiclePage({ params }: PageProps<"/inventory/[slu
     sold,
   };
 
-  const specs: [string, string | null][] = [
-    ["Body", v.body_type && BODY_TYPE_LABELS[v.body_type]],
-    ["Engine", v.engine],
-    ["Transmission", v.transmission && TRANSMISSION_LABELS[v.transmission]],
-    ["Drivetrain", v.drivetrain && DRIVETRAIN_LABELS[v.drivetrain]],
-    ["Fuel", v.fuel_type && FUEL_LABELS[v.fuel_type]],
-    ["Exterior", v.exterior_color],
-    ["Interior", v.interior_color],
-    ["Title", v.title_status && TITLE_STATUS_LABELS[v.title_status]],
+  const specs: Spec[] = [
+    { label: "Stock no.", value: v.stock_no, icon: Hash },
+    { label: "VIN", value: v.vin, icon: ScanBarcode, mono: true },
+    { label: "Body style", value: v.body_type && BODY_TYPE_LABELS[v.body_type], icon: CarFront },
+    { label: "Mileage", value: formatMileage(v.mileage), icon: Gauge },
+    { label: "Engine", value: v.engine, icon: Cog },
+    { label: "Fuel", value: v.fuel_type && FUEL_LABELS[v.fuel_type], icon: Fuel },
+    {
+      label: "Transmission",
+      value: v.transmission && TRANSMISSION_LABELS[v.transmission],
+      icon: Settings2,
+    },
+    { label: "Drive", value: v.drivetrain && DRIVETRAIN_LABELS[v.drivetrain], icon: CircleDot },
+    { label: "Exterior color", value: v.exterior_color, icon: Palette },
+    { label: "Interior color", value: v.interior_color, icon: Armchair },
+    {
+      label: "Title",
+      value: v.title_status && TITLE_STATUS_LABELS[v.title_status],
+      icon: FileCheck,
+    },
   ];
   const paragraphs = v.description?.split(/\n\s*\n|\n/).filter((p) => p.trim()) ?? [];
 
@@ -101,84 +131,122 @@ export default async function VehiclePage({ params }: PageProps<"/inventory/[slu
 
   return (
     <div className="pb-28 md:pb-0">
-      <Container className="px-0 sm:px-6 sm:pt-6 lg:px-8">
+      <div className="border-b bg-muted/50">
+        <Container className="py-3">
+          <Link
+            href="/inventory"
+            className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+          >
+            <ArrowLeft className="size-4" aria-hidden /> Back to inventory
+          </Link>
+        </Container>
+      </div>
+
+      <Container className="pt-6 sm:pt-8">
+        <div className="space-y-2">
+          <VehicleBadges vehicle={v} />
+          <h1 className="text-2xl leading-tight font-extrabold tracking-tight uppercase sm:text-3xl">
+            {title}
+          </h1>
+        </div>
+      </Container>
+
+      <Container className="mt-5 px-0 sm:px-6 lg:px-8">
+        {/* Phones stack: photos, price + actions + specs, then features and description. */}
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-10">
           <div className="min-w-0">
             <VehicleGallery photos={v.photos} alt={title} sold={sold} />
           </div>
 
-          {/* Summary + desktop actions */}
-          <aside className="px-4 sm:px-0 lg:sticky lg:top-24 lg:self-start">
-            <div className="space-y-5 lg:rounded-xl lg:border lg:bg-card lg:p-6 lg:shadow-sm">
-              <div className="space-y-2">
-                <VehicleBadges vehicle={v} />
-                <h1 className="text-3xl leading-tight font-extrabold tracking-tight">
-                  {vehicleTitle(v)}
-                </h1>
-                {v.trim && <p className="text-lg text-muted-foreground">{v.trim}</p>}
+          <aside className="space-y-5 px-4 sm:px-0 lg:row-span-2">
+            <div className="overflow-hidden rounded-xl border-2 border-neutral-200">
+              <div className="px-5 py-5 text-center">
+                {sold ? (
+                  <>
+                    <p className="text-sm font-semibold tracking-wide text-neutral-600 uppercase">
+                      Status
+                    </p>
+                    <p className="mt-1 text-3xl font-extrabold text-brand">Sold</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold tracking-wide text-neutral-600 uppercase">
+                      Price
+                    </p>
+                    <p className="mt-1 text-4xl font-extrabold tracking-tight text-brand">
+                      {formatPrice(v.price)}
+                    </p>
+                  </>
+                )}
               </div>
-
-              {sold ? (
-                <div className="space-y-3">
-                  <p className="text-2xl font-extrabold text-brand">This vehicle has been sold</p>
-                  {similar.length > 0 && (
+              <p className="border-t bg-muted/60 px-4 py-3 text-center text-sm text-muted-foreground">
+                {sold ? (
+                  similar.length > 0 ? (
                     <a
                       href="#similar"
                       className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline"
                     >
                       See similar vehicles <ArrowDown className="size-4" aria-hidden />
                     </a>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <p className="text-4xl font-extrabold tracking-tight">{formatPrice(v.price)}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{settings.price_disclaimer}</p>
-                </div>
-              )}
-
-              <dl className="grid grid-cols-3 gap-3 border-y py-4 text-sm">
-                <KeyFact label="Mileage" value={formatMileage(v.mileage) ?? "—"} />
-                <KeyFact label="Stock #" value={v.stock_no} />
-                <KeyFact
-                  label="VIN"
-                  value={v.vin ?? "—"}
-                  className="col-span-3 sm:col-span-1 lg:col-span-3"
-                  mono
-                />
-              </dl>
-
-              <DesktopActions {...actions} />
+                  ) : (
+                    "This vehicle has been sold."
+                  )
+                ) : (
+                  settings.price_disclaimer
+                )}
+              </p>
             </div>
+
+            <DesktopActions {...actions} />
+
+            <dl className="overflow-hidden rounded-xl border text-sm" data-testid="vehicle-specs">
+              {specs.map(({ label, value, icon: Icon, mono }, i) => (
+                <div
+                  key={label}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-2.5",
+                    i % 2 === 0 ? "bg-muted/70" : "bg-background",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0 text-brand" aria-hidden />
+                  <dt className="shrink-0 font-medium text-neutral-600">{label}</dt>
+                  <dd
+                    className={cn(
+                      "min-w-0 flex-1 text-right font-semibold break-words",
+                      mono && "font-mono text-[13px] break-all",
+                    )}
+                  >
+                    {value || "—"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            {!sold && (
+              <p className="text-center text-sm text-muted-foreground">
+                Not quite right?{" "}
+                <Link
+                  href="/vehicle-finder"
+                  className="inline-flex items-center gap-1 font-semibold text-primary underline-offset-4 hover:underline"
+                >
+                  <Search className="size-3.5" aria-hidden /> Use the Vehicle Finder
+                </Link>
+              </p>
+            )}
           </aside>
-        </div>
-      </Container>
 
-      <Container className="mt-10 space-y-12 sm:mt-12">
-        {sold && similarSection}
-
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-10">
-          <div className="space-y-10">
-            <section>
-              <h2 className="mb-4 text-xl font-bold">Specifications</h2>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border p-5 sm:grid-cols-3">
-                {specs.map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      {label}
-                    </dt>
-                    <dd className="mt-0.5 font-medium">{value ?? "—"}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-
+          <div className="min-w-0 space-y-10 px-4 sm:px-0">
             {v.features.length > 0 && (
               <section>
                 <h2 className="mb-4 text-xl font-bold">Features</h2>
-                <ul className="flex flex-wrap gap-2">
+                <ul className="grid gap-x-6 gap-y-2.5 rounded-xl border bg-muted/30 p-5 sm:grid-cols-2">
                   {v.features.map((f) => (
-                    <li key={f} className="rounded-full bg-muted px-3.5 py-1.5 text-sm font-medium">
+                    <li key={f} className="flex items-start gap-2.5 text-[15px]">
+                      <Check
+                        className="mt-0.5 size-4 shrink-0 text-brand"
+                        strokeWidth={3}
+                        aria-hidden
+                      />
                       {f}
                     </li>
                   ))}
@@ -188,7 +256,7 @@ export default async function VehiclePage({ params }: PageProps<"/inventory/[slu
 
             {paragraphs.length > 0 && (
               <section>
-                <h2 className="mb-4 text-xl font-bold">Description</h2>
+                <h2 className="mb-4 text-xl font-bold">About this vehicle</h2>
                 <div className="max-w-prose space-y-4 leading-relaxed text-foreground/90">
                   {paragraphs.map((p, i) => (
                     <p key={i}>{p}</p>
@@ -198,9 +266,9 @@ export default async function VehiclePage({ params }: PageProps<"/inventory/[slu
             )}
           </div>
         </div>
-
-        {!sold && similarSection}
       </Container>
+
+      <Container className="mt-12 space-y-12">{similarSection}</Container>
 
       <div className="h-16" />
       <MobileActionBar {...actions} />
@@ -208,25 +276,4 @@ export default async function VehiclePage({ params }: PageProps<"/inventory/[slu
   );
 }
 
-function KeyFact({
-  label,
-  value,
-  className,
-  mono,
-}: {
-  label: string;
-  value: string;
-  className?: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className={className}>
-      <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd className={mono ? "mt-0.5 font-mono text-[13px] break-all" : "mt-0.5 font-semibold"}>
-        {value}
-      </dd>
-    </div>
-  );
-}
+type Spec = { label: string; value: string | null; icon: LucideIcon; mono?: boolean };

@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, ChevronLeft, ChevronRight, Expand } from "lucide-react";
+import { Car, ChevronLeft, ChevronRight, Expand, Images } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import Lightbox from "yet-another-react-lightbox";
@@ -30,6 +30,7 @@ export function VehicleGallery({
   sold?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const thumbsRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
@@ -42,7 +43,16 @@ export function VehicleGallery({
 
   function onScroll() {
     const track = trackRef.current;
-    if (track) setIndex(Math.round(track.scrollLeft / track.clientWidth));
+    if (!track) return;
+    const i = Math.round(track.scrollLeft / track.clientWidth);
+    setIndex(i);
+    // Keep the current thumbnail in view (horizontally only, never scroll the page).
+    const strip = thumbsRef.current;
+    const thumb = strip?.children[i] as HTMLElement | undefined;
+    if (strip && thumb) {
+      const left = thumb.offsetLeft - strip.clientWidth / 2 + thumb.clientWidth / 2;
+      strip.scrollTo({ left, behavior: "smooth" });
+    }
   }
 
   if (photos.length === 0) {
@@ -106,7 +116,10 @@ export function VehicleGallery({
       </div>
 
       {photos.length > 1 && (
-        <div className="no-scrollbar hidden gap-2 overflow-x-auto md:flex">
+        <div
+          ref={thumbsRef}
+          className="relative no-scrollbar flex gap-2 overflow-x-auto px-4 py-0.5 sm:px-0.5"
+        >
           {photos.map((photo, i) => (
             <button
               key={photo.id}
@@ -115,7 +128,7 @@ export function VehicleGallery({
               aria-label={`Show photo ${i + 1}`}
               aria-current={i === index}
               className={cn(
-                "relative aspect-[4/3] w-24 shrink-0 overflow-hidden rounded-lg ring-2 transition",
+                "relative aspect-[4/3] w-20 shrink-0 overflow-hidden rounded-md ring-2 transition md:w-24",
                 i === index ? "ring-primary" : "opacity-70 ring-transparent hover:opacity-100",
               )}
             >
@@ -124,6 +137,22 @@ export function VehicleGallery({
           ))}
         </div>
       )}
+
+      <div className="px-4 sm:px-0">
+        <button
+          type="button"
+          onClick={() => setLightboxOpen(true)}
+          className="inline-flex h-11 items-center gap-2.5 rounded-lg border-2 border-primary/80 bg-background pr-4 pl-1.5 text-sm font-bold transition hover:bg-primary/5"
+        >
+          <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Images className="size-4" aria-hidden />
+          </span>
+          Photo viewer
+          <span className="font-semibold text-brand">
+            {photos.length} {photos.length === 1 ? "photo" : "photos"}
+          </span>
+        </button>
+      </div>
 
       <Lightbox
         open={lightboxOpen}
