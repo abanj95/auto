@@ -1,167 +1,172 @@
-import { Clock, MapPin, Phone } from "lucide-react";
+import { Car, MapPin, Phone, Search, type LucideIcon } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { Container } from "@/components/public/container";
 import { HeroCarousel } from "@/components/public/hero-carousel";
 import { HERO_HEIGHT } from "@/components/public/hero-slide";
-import { HoursList } from "@/components/public/hours-list";
-import { QuickSearch } from "@/components/public/quick-search";
 import { SectionHeading } from "@/components/public/section-heading";
 import { VehicleGrid } from "@/components/public/vehicle-grid";
-import { Button } from "@/components/ui/button";
-import { Constants } from "@/lib/database.types";
-import { BODY_TYPE_LABELS, phoneHref } from "@/lib/format";
+import { phoneHref } from "@/lib/format";
+import { getFeaturedVehicles, getHeroSlides, getSiteSettings, mapUrl } from "@/lib/public-data";
+import { siteImageUrl } from "@/lib/site-images";
 import { cn } from "@/lib/utils";
-import {
-  fullAddress,
-  getFeaturedVehicles,
-  getHeroSlides,
-  getInventoryFacets,
-  getNewestVehicles,
-  getSiteSettings,
-  mapUrl,
-} from "@/lib/public-data";
 
 export default async function HomePage() {
-  const [settings, slides, featured, newest, facets] = await Promise.all([
-    getSiteSettings(),
-    getHeroSlides(),
-    getFeaturedVehicles(),
-    getNewestVehicles(6),
-    getInventoryFacets(),
-  ]);
-  const bodyTypes = Constants.public.Enums.vehicle_body_type.filter((b) => facets.bodyCounts[b]);
-  const address = fullAddress(settings);
+  const [settings, slides] = await Promise.all([getSiteSettings(), getHeroSlides()]);
+  // One row of featured cars, only when the homepage editor's toggle is on.
+  const featured = settings.show_featured_on_home ? await getFeaturedVehicles(4) : [];
   const map = mapUrl(settings);
-  const place = settings.city ?? "your area";
-  const eyebrow = `${settings.dealership_name} · ${place}`;
+  const photo = siteImageUrl(settings.about_image_path);
+  const paragraphs = settings.about_text?.split(/\n\s*\n/).filter((p) => p.trim()) ?? [];
+
+  const tiles: Tile[] = [
+    { label: settings.tile_inventory_label, icon: Car, href: "/inventory" },
+    { label: settings.tile_finder_label, icon: Search, href: "/vehicle-finder" },
+    ...(map ? [{ label: settings.tile_visit_label, icon: MapPin, href: map, external: true }] : []),
+    ...(settings.phone
+      ? [{ label: settings.tile_call_label, icon: Phone, href: `tel:${phoneHref(settings.phone)}` }]
+      : []),
+  ];
 
   return (
     <>
       {/* Hero: carousel from /admin/homepage, or a plain fallback with no live slides */}
-      <section className="relative isolate">
-        {slides.length > 0 ? (
-          <HeroCarousel
-            slides={slides}
-            eyebrow={eyebrow}
-            autoplay={settings.hero_autoplay}
-            intervalSeconds={settings.hero_interval_seconds}
-          />
-        ) : (
-          <FallbackHero name={settings.dealership_name} eyebrow={eyebrow} />
-        )}
-        <Container className="relative -mt-20 sm:-mt-14">
-          <div className="max-w-3xl">
-            <QuickSearch makes={facets.makes} />
+      {slides.length > 0 ? (
+        <HeroCarousel
+          slides={slides}
+          autoplay={settings.hero_autoplay}
+          intervalSeconds={settings.hero_interval_seconds}
+        />
+      ) : (
+        <FallbackHero name={settings.dealership_name} />
+      )}
+
+      <Container className="py-14 sm:py-16">
+        <nav aria-label="Quick links" className="mx-auto max-w-5xl">
+          <ul
+            className={cn(
+              "grid grid-cols-2 gap-x-4 gap-y-12 pt-8 sm:gap-x-6",
+              tiles.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3",
+            )}
+            data-testid="quick-links"
+          >
+            {tiles.map((tile) => (
+              <li key={tile.href}>
+                <QuickLinkTile {...tile} />
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </Container>
+
+      <section className="bg-muted/60">
+        <Container
+          className={cn(
+            "py-14 sm:py-20",
+            photo ? "grid items-center gap-8 lg:grid-cols-2 lg:gap-14" : "max-w-3xl text-center",
+          )}
+        >
+          <div>
+            <h2 className="text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+              Welcome to {settings.dealership_name}
+            </h2>
+            <p className="mt-2 text-lg font-semibold text-balance text-brand sm:text-xl">
+              {settings.home_welcome_subheading}
+            </p>
+            <div
+              className={cn("mt-5 h-1 w-16 rounded-full bg-primary", !photo && "mx-auto")}
+              aria-hidden
+            />
+            <div className="mt-6 space-y-4 text-base leading-relaxed text-foreground/85 sm:text-lg">
+              {paragraphs.length > 0 ? (
+                paragraphs.map((p, i) => <p key={i}>{p}</p>)
+              ) : (
+                <p>Quality pre-owned vehicles at honest, all-in prices.</p>
+              )}
+            </div>
           </div>
+          {photo && (
+            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted shadow-sm">
+              <Image
+                src={photo}
+                alt={settings.dealership_name}
+                fill
+                sizes="(min-width: 1024px) 600px, 100vw"
+                className="object-cover"
+              />
+            </div>
+          )}
         </Container>
       </section>
 
-      <Container className="space-y-16 py-14 sm:space-y-20 sm:py-20">
-        {featured.length > 0 && (
+      {featured.length > 0 && (
+        <Container className="py-14 sm:py-16">
           <section>
             <SectionHeading title="Featured vehicles" href="/inventory" />
-            <VehicleGrid vehicles={featured} eagerCount={1} />
+            <VehicleGrid vehicles={featured} />
           </section>
-        )}
-
-        <section>
-          <SectionHeading title="Newest arrivals" href="/inventory" linkLabel="See all inventory" />
-          {newest.length > 0 ? (
-            <VehicleGrid vehicles={newest} />
-          ) : (
-            <p className="text-muted-foreground">New inventory is on the way. Check back soon.</p>
-          )}
-        </section>
-
-        {bodyTypes.length > 0 && (
-          <section>
-            <SectionHeading title="Shop by body type" />
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {bodyTypes.map((b) => (
-                <li key={b}>
-                  <Link
-                    href={`/inventory?body=${b}`}
-                    className="flex h-full flex-col justify-between rounded-xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-                  >
-                    <span className="text-lg font-bold">{BODY_TYPE_LABELS[b]}</span>
-                    <span className="mt-6 text-sm text-muted-foreground">
-                      {facets.bodyCounts[b]} available
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <section className="grid gap-8 overflow-hidden rounded-2xl bg-muted/60 p-6 sm:p-10 lg:grid-cols-2">
-          <div className="space-y-4">
-            <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-              About {settings.dealership_name}
-            </h2>
-            <p className="line-clamp-6 text-muted-foreground">
-              {settings.about_text?.split(/\n\s*\n/)[0] ??
-                "Quality pre-owned vehicles at honest prices."}
-            </p>
-            <Button asChild variant="outline" className="h-11">
-              <Link href="/about">More about us</Link>
-            </Button>
-          </div>
-          <div className="space-y-5 rounded-xl bg-background p-6 shadow-sm">
-            <h2 className="text-xl font-bold">Visit us</h2>
-            {address && (
-              <p className="flex gap-3">
-                <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-                {address}
-              </p>
-            )}
-            <div className="flex gap-3">
-              <Clock className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-              <HoursList hours={settings.hours} className="flex-1" />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {settings.phone && (
-                <Button asChild className="h-11">
-                  <a href={`tel:${phoneHref(settings.phone)}`}>
-                    <Phone aria-hidden /> {settings.phone}
-                  </a>
-                </Button>
-              )}
-              {map && (
-                <Button asChild variant="outline" className="h-11">
-                  <a href={map} target="_blank" rel="noopener noreferrer">
-                    <MapPin aria-hidden /> Get directions
-                  </a>
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-      </Container>
+        </Container>
+      )}
     </>
   );
 }
 
-/** Shown when no slide is live: the dealership name on a plain dark background. */
-function FallbackHero({ name, eyebrow }: { name: string; eyebrow: string }) {
+type Tile = { label: string; icon: LucideIcon; href: string; external?: boolean };
+
+/** Dark card with a round accent icon badge overlapping its top edge. */
+function QuickLinkTile({ label, icon: Icon, href, external }: Tile) {
+  const className =
+    "group relative flex aspect-[4/3] flex-col items-center justify-center rounded-2xl bg-neutral-900 px-3 pt-8 text-center text-white shadow-md transition hover:-translate-y-1 hover:bg-neutral-800 hover:shadow-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none";
+  const content = (
+    <>
+      <span className="absolute -top-8 left-1/2 flex size-16 -translate-x-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background transition group-hover:scale-105">
+        <Icon className="size-7" aria-hidden />
+      </span>
+      <span className="text-lg leading-tight font-bold sm:text-xl">{label}</span>
+    </>
+  );
+  if (external)
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+        {content}
+      </a>
+    );
+  if (href.startsWith("tel:"))
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  return (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  );
+}
+
+/** Shown when no slide is live: the dealership name in the same centered box. */
+function FallbackHero({ name }: { name: string }) {
   return (
     <div
       className={cn(
-        "bg-gradient-to-br from-neutral-950 via-neutral-900 to-brand/40 text-white",
+        "flex items-center justify-center bg-gradient-to-br from-neutral-950 via-neutral-900 to-brand/40 px-4 text-white",
         HERO_HEIGHT,
       )}
       data-testid="fallback-hero"
     >
-      <Container className="flex h-full flex-col justify-center pb-24 sm:pb-20">
-        <p className="text-sm font-semibold tracking-widest text-white/70 uppercase">{eyebrow}</p>
-        <h1 className="mt-3 max-w-2xl text-4xl leading-[1.05] font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-          {name}
-        </h1>
-        <p className="mt-4 max-w-lg text-lg text-white/80">
+      <div className="w-full max-w-2xl rounded-2xl bg-black/50 px-5 py-8 text-center sm:px-10 sm:py-10">
+        <h1 className="text-3xl leading-[1.1] font-extrabold tracking-tight sm:text-5xl">{name}</h1>
+        <p className="mt-3 text-base text-white/85 sm:text-lg">
           Quality pre-owned cars, trucks and SUVs, priced up front.
         </p>
-      </Container>
+        <Link
+          href="/inventory"
+          className="mt-6 inline-flex h-12 items-center rounded-full bg-primary px-7 text-base font-semibold text-primary-foreground shadow-lg transition hover:bg-primary/90"
+        >
+          View inventory
+        </Link>
+      </div>
     </div>
   );
 }

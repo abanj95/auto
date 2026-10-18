@@ -29,28 +29,21 @@ const FOCAL: Record<FocalPoint, string> = {
   right: "object-[75%_center]",
 };
 
-// Readability layer behind the text. Left-aligned text gets a gradient from the
-// text side; centered text an even tint.
-const OVERLAY: Record<Overlay, Record<TextPosition, string>> = {
-  none: { left: "", center: "" },
-  light: {
-    left: "bg-gradient-to-t from-black/60 via-black/25 to-black/10 @2xl:bg-gradient-to-r @2xl:from-black/60 @2xl:via-black/30 @2xl:to-transparent",
-    center: "bg-black/30",
-  },
-  dark: {
-    left: "bg-gradient-to-t from-black/85 via-black/45 to-black/30 @2xl:bg-gradient-to-r @2xl:from-black/85 @2xl:via-black/55 @2xl:to-black/10",
-    center: "bg-black/55",
-  },
+// Tint over the whole image (the text also sits in its own dark box).
+const OVERLAY: Record<Overlay, string> = {
+  none: "",
+  light: "bg-black/20",
+  dark: "bg-black/40",
 };
 
 /**
- * One hero slide. Layout uses container queries (@2xl ≈ sm, @5xl = lg) rather
- * than the viewport, so the admin preview (a scaled-down box) looks exactly
- * like the live page.
+ * One hero slide: the image, with the headline, one paragraph and one button
+ * in a single centered semi-transparent dark box. Layout uses container
+ * queries (@2xl ≈ sm, @5xl = lg) rather than the viewport, so the admin
+ * preview (a scaled-down box) looks exactly like the live page.
  */
 export function HeroSlide({
   slide,
-  eyebrow,
   heading = "h2",
   priority = false,
   loading,
@@ -58,8 +51,6 @@ export function HeroSlide({
   className,
 }: {
   slide: HeroSlideData;
-  /** Small line above the headline, e.g. "McRowin Auto · Lansdale". */
-  eyebrow?: string;
   /** The first slide's headline is the page's h1. */
   heading?: "h1" | "h2" | "p";
   /** First slide: load at once with high priority. */
@@ -73,10 +64,10 @@ export function HeroSlide({
   className?: string;
 }) {
   const Heading = heading;
-  const centered = slide.text_position === "center";
   const hasButton = slide.button_label && slide.button_link;
+  const hasText = slide.headline || slide.subheadline || hasButton;
   const buttonClass =
-    "mt-7 inline-flex h-12 w-fit items-center rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition hover:bg-primary/90";
+    "mt-6 inline-flex h-12 w-fit items-center rounded-full bg-primary px-7 text-base font-semibold text-primary-foreground shadow-lg transition hover:bg-primary/90";
   const imageClass = cn("absolute inset-0 -z-10 size-full object-cover", FOCAL[slide.focal_point]);
 
   let image: React.ReactNode;
@@ -132,47 +123,35 @@ export function HeroSlide({
   return (
     <div className={cn("@container relative isolate overflow-hidden bg-neutral-900", className)}>
       {image}
-      <div
-        className={cn(
-          "absolute inset-0 -z-10",
-          OVERLAY[slide.overlay_strength][slide.text_position],
-        )}
-      />
-      <div
-        className={cn(
-          "mx-auto flex h-full w-full max-w-7xl flex-col justify-center px-4 pb-24 text-white text-shadow-md @2xl:px-6 @2xl:pb-20 @5xl:px-8",
-          centered && "items-center text-center",
-        )}
-      >
-        {eyebrow && (
-          <p className="text-sm font-semibold tracking-widest text-white/80 uppercase">{eyebrow}</p>
-        )}
-        {slide.headline && (
-          <Heading
-            className={cn(
-              "mt-3 max-w-2xl text-4xl leading-[1.05] font-extrabold tracking-tight @2xl:text-5xl @5xl:text-6xl",
-              centered && "max-w-3xl",
+      <div className={cn("absolute inset-0 -z-10", OVERLAY[slide.overlay_strength])} />
+      {hasText && (
+        <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-center px-4 @2xl:px-6 @5xl:px-8">
+          <div className="flex w-full max-w-2xl flex-col items-center rounded-2xl bg-black/60 px-5 py-7 text-center text-white backdrop-blur-[2px] @2xl:px-10 @2xl:py-10">
+            {slide.headline && (
+              <Heading className="text-3xl leading-[1.1] font-extrabold tracking-tight @2xl:text-4xl @5xl:text-5xl">
+                {slide.headline}
+              </Heading>
             )}
-          >
-            {slide.headline}
-          </Heading>
-        )}
-        {slide.subheadline && (
-          <p className="mt-4 max-w-lg text-lg text-white/85">{slide.subheadline}</p>
-        )}
-        {hasButton &&
-          (preview ? (
-            <span className={buttonClass}>{slide.button_label}</span>
-          ) : slide.button_link!.startsWith("tel:") ? (
-            <a href={slide.button_link!} className={buttonClass}>
-              {slide.button_label}
-            </a>
-          ) : (
-            <Link href={slide.button_link!} className={buttonClass}>
-              {slide.button_label}
-            </Link>
-          ))}
-      </div>
+            {slide.subheadline && (
+              <p className="mt-3 max-w-xl text-base text-white/90 @2xl:mt-4 @2xl:text-lg">
+                {slide.subheadline}
+              </p>
+            )}
+            {hasButton &&
+              (preview ? (
+                <span className={buttonClass}>{slide.button_label}</span>
+              ) : slide.button_link!.startsWith("tel:") ? (
+                <a href={slide.button_link!} className={buttonClass}>
+                  {slide.button_label}
+                </a>
+              ) : (
+                <Link href={slide.button_link!} className={buttonClass}>
+                  {slide.button_label}
+                </Link>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

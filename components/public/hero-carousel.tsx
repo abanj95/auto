@@ -37,12 +37,10 @@ function useReducedMotion() {
  */
 export function HeroCarousel({
   slides,
-  eyebrow,
   autoplay,
   intervalSeconds,
 }: {
   slides: HeroSlideData[];
-  eyebrow: string;
   autoplay: boolean;
   intervalSeconds: number;
 }) {
@@ -111,7 +109,6 @@ export function HeroCarousel({
           >
             <HeroSlide
               slide={slide}
-              eyebrow={eyebrow}
               heading={i === 0 ? "h1" : "h2"}
               priority={i === 0}
               loading={eager.has(i) ? "eager" : "lazy"}
