@@ -75,7 +75,7 @@ test.describe("database access rules", () => {
     expect(rpcError).not.toBeNull();
   });
 
-  test("poster: manages vehicles (incl. delete), nothing admin-only", async () => {
+  test("poster: manages vehicles; no extra areas until an admin turns them on", async () => {
     const db = posterDb;
     // Sees drafts; creates, edits and deletes vehicles (posters may delete, by design).
     expect((await db.from("vehicles").select("id").eq("id", draftId)).data).toHaveLength(1);
@@ -101,13 +101,32 @@ test.describe("database access rules", () => {
     });
     expect(spoof?.code).toBe("42501");
 
-    // Settings, roles, activity log, homepage and Storage are off limits.
+    // Without extra access: no settings, slides or requests.
     const { data: settings } = await db
       .from("site_settings")
       .update({ phone: "(000) 000-0000" })
       .eq("id", true)
       .select();
     expect(settings ?? []).toEqual([]);
+    const { error: slideError } = await db
+      .from("hero_slides")
+      .insert({ image_path: "/x.jpg", image_width: 1, image_height: 1 });
+    expect(slideError).not.toBeNull();
+    expect((await db.from("vehicle_requests").select("id")).data ?? []).toEqual([]);
+    // …and they can't give themselves access.
+    const { data: selfGrant } = await db
+      .from("profiles")
+      .update({ permissions: ["settings"] })
+      .eq("id", poster.userId)
+      .select();
+    expect(selfGrant ?? []).toEqual([]);
+
+    // Roles, the activity log, `featured` and direct Storage uploads are off limits.
+    const { error: featuredError } = await db
+      .from("vehicles")
+      .update({ featured: true })
+      .eq("id", draftId);
+    expect(featuredError).not.toBeNull();
     const { data: roles } = await db
       .from("profiles")
       .update({ role: "admin" })
@@ -117,10 +136,6 @@ test.describe("database access rules", () => {
     expect((await db.from("audit_log").select("id").limit(1)).data ?? []).toEqual([]);
     const { error: auditInsert } = await db.from("audit_log").insert({ action: "sign_in" });
     expect(auditInsert).not.toBeNull();
-    const { error: slideError } = await db
-      .from("hero_slides")
-      .insert({ image_path: "/x.jpg", image_width: 1, image_height: 1 });
-    expect(slideError).not.toBeNull();
     const { error: uploadError } = await db.storage
       .from("vehicle-photos")
       .upload(`${draftId}/${crypto.randomUUID()}.webp`, new Blob(["x"], { type: "image/webp" }));
@@ -161,6 +176,129 @@ test.describe("database access rules", () => {
     expect((await db.from("vehicles").select("id").eq("id", draftId)).data).toEqual([]);
     const { error } = await db.from("vehicles").insert({ make: "Rlstest", model: "Nosession" });
     expect(error).not.toBeNull();
+  });
+
+  test("poster access levels: each area unlocks only its own tables and fields", async () => {
+    // Own user, so the shared poster keeps "no extra access".
+    const own = await createStaff("poster", "E2E Levels");
+    try {
+      const setAccess = async (permissions: string[]) => {
+        const { error } = await admin.from("profiles").update({ permissions }).eq("id", own.userId);
+        if (error) throw error;
+      };
+      const db = await staffClient(own);
+      const { data: current } = await admin
+        .from("site_settings")
+        .select("phone, tile_call_label")
+        .single();
+
+      // Homepage only: slides and homepage fields, not the phone number.
+      await setAccess(["homepage"]);
+      const { data: tile, error: tileError } = await db
+        .from("site_settings")
+        .update({ tile_call_label: current!.tile_call_label })
+        .eq("id", true)
+        .select("id");
+      expect(tileError).toBeNull();
+      expect(tile).toHaveLength(1);
+      const { error: phoneError } = await db
+        .from("site_settings")
+        .update({ phone: current!.phone })
+        .eq("id", true)
+        .select("id");
+      expect(phoneError).toBeNull(); // Unchanged value: nothing to protect.
+      const { error: changePhone } = await db
+        .from("site_settings")
+        .update({ phone: "(000) 000-0000" })
+        .eq("id", true);
+      expect(changePhone?.code).toBe("42501");
+      const { data: slide, error: slideError } = await db
+        .from("hero_slides")
+        .insert({ image_path: "/x.jpg", image_width: 1, image_height: 1, active: false })
+        .select("id")
+        .single();
+      expect(slideError).toBeNull();
+      await db.from("hero_slides").delete().eq("id", slide!.id);
+      expect((await db.from("vehicle_requests").select("id")).data ?? []).toEqual([]);
+
+      // Settings only: the phone number, not homepage fields or slides.
+      await setAccess(["settings"]);
+      const { error: settingsError } = await db
+        .from("site_settings")
+        .update({ phone: current!.phone })
+        .eq("id", true);
+      expect(settingsError).toBeNull();
+      const { error: changeTile } = await db
+        .from("site_settings")
+        .update({ tile_call_label: "Hacked" })
+        .eq("id", true);
+      expect(changeTile?.code).toBe("42501");
+      const { error: noSlides } = await db
+        .from("hero_slides")
+        .insert({ image_path: "/x.jpg", image_width: 1, image_height: 1 });
+      expect(noSlides).not.toBeNull();
+    } finally {
+      await deleteStaff(own);
+    }
+  });
+
+  test("vehicle_requests: anon can't read or insert; only Requests access reads", async () => {
+    const { data: row, error } = await admin
+      .from("vehicle_requests")
+      .insert({
+        first_name: "Rls",
+        last_name: "Test",
+        phone: "(215) 555-0100",
+        email: `e2e-rls-${crypto.randomUUID()}@example.com`,
+        consent: true,
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    try {
+      // Anon: no read, no direct insert (the server inserts after Turnstile/rate limits).
+      const anonRead = await anon.from("vehicle_requests").select("id").eq("id", row.id);
+      expect(anonRead.data ?? []).toEqual([]);
+      const anonInsert = await anon.from("vehicle_requests").insert({
+        first_name: "Bot",
+        last_name: "Bot",
+        phone: "1",
+        email: "bot@example.com",
+        consent: true,
+      });
+      expect(anonInsert.error).not.toBeNull();
+
+      // Poster without Requests access: nothing visible, nothing changes.
+      expect((await posterDb.from("vehicle_requests").select("id")).data ?? []).toEqual([]);
+      const { data: posterRows } = await posterDb
+        .from("vehicle_requests")
+        .update({ admin_notes: "Called" })
+        .eq("id", row.id)
+        .select("admin_notes");
+      expect(posterRows ?? []).toEqual([]);
+
+      // Admin: reads and updates; closing sets closed_at.
+      const { data: seen } = await adminDb
+        .from("vehicle_requests")
+        .select("status")
+        .eq("id", row.id)
+        .single();
+      expect(seen?.status).toBe("new");
+      const { error: updateError } = await adminDb
+        .from("vehicle_requests")
+        .update({ status: "closed" })
+        .eq("id", row.id);
+      expect(updateError).toBeNull();
+      const { data: closed } = await admin
+        .from("vehicle_requests")
+        .select("status, closed_at")
+        .eq("id", row.id)
+        .single();
+      expect(closed?.status).toBe("closed");
+      expect(closed?.closed_at).not.toBeNull();
+    } finally {
+      await admin.from("vehicle_requests").delete().eq("id", row.id);
+    }
   });
 
   test("idle or expired session: no staff access, even with a valid token", async () => {

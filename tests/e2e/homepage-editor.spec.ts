@@ -77,8 +77,8 @@ test.describe("homepage editor", () => {
       await expect(hero).toBeVisible();
       await expect(hero.getByRole("heading", { level: 1 })).toHaveText(settings!.dealership_name);
       await expect(page.getByRole("region", { name: "Highlights" })).toHaveCount(0);
-      // The quick search is still there.
-      await expect(page.getByRole("button", { name: "Search" })).toBeVisible();
+      // The quick-link tiles are still there.
+      await expect(page.getByTestId("quick-links").getByRole("link")).not.toHaveCount(0);
     } finally {
       if (ids.length) await admin.from("hero_slides").update({ active: true }).in("id", ids);
     }

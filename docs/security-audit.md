@@ -72,7 +72,7 @@ missing browser security headers, and no audit trail.
 - **`supabase db advisors`** (security + performance) reports only "leaked password protection disabled" (M3).
 - **Storage.**
   - Both buckets are public by URL but not listable, and nobody can overwrite a file (no UPDATE policy).
-  - Only admins can write to `site-images`, so posters can't touch it.
+  - Uploads to `site-images` go only through the server route. Posters may manage the homepage and its images only when an admin gives them Homepage access (migration 020).
   - Staff delete only in `vehicle-photos`.
   - Size limits: 5 MB and 8 MB.
 - **Secret key never reaches the browser.**

@@ -5,10 +5,13 @@ A simple used-car dealership website for McRowin Auto, replacing an old WordPres
 ## Product summary
 
 - **Public buyers:** browse vehicle listings, filter, view a vehicle page with a photo gallery, tap
-  Call or Text, and share a listing. No buyer accounts, no forms, no favorites.
+  Call or Text, and share a listing; ask us to find a car (Vehicle Finder). No buyer accounts, no
+  favorites. The Vehicle Finder is the only public form.
 - **Staff:** two roles.
   - `admin` manages everything: listings, site settings, users.
-  - `poster` can create, edit, mark sold, and delete listings (no settings, users or featured).
+  - `poster` can create, edit, mark sold, and delete listings. An admin can also give each poster
+    any of three extra areas on the Users page ("Access…"): **Requests**, **Homepage**, **Settings**
+    (`profiles.permissions`). Never: users, activity log, featured.
   - Staff mostly post from a phone.
 
 ## Stack
@@ -22,7 +25,8 @@ A simple used-car dealership website for McRowin Auto, replacing an old WordPres
 
 Also used: `browser-image-compression` (photo uploads), `@dnd-kit/*` (photo reordering),
 `sonner` (toasts), `yet-another-react-lightbox` (public gallery), `@vercel/analytics`,
-`@vercel/speed-insights`, `server-only`, `tsx`, `supabase` CLI. No VIN barcode scanning (by
+`@vercel/speed-insights`, `server-only`, `tsx`, `supabase` CLI, `react-markdown` (legal pages).
+Resend (email) is called over HTTP with `fetch`, no SDK. No VIN barcode scanning (by
 decision) — VINs are typed.
 
 ## Folder layout
@@ -31,7 +35,10 @@ decision) — VINs are typed.
 app/
   layout.tsx          Root layout (Inter font, metadata)
   globals.css         Theme tokens (brand color, grays)
-  (public)/           Buyer site: home, inventory, inventory/[slug], about, contact
+  (public)/           Buyer site: home, inventory, inventory/[slug], vehicle-finder, about, contact,
+                      terms, privacy
+  api/vehicles/[slug]/photos/  Public read-only photo list (inventory "Photos (N)" lightbox)
+  sitemap.ts          Public pages (vehicle pages come with the SEO stage)
   not-found.tsx       Site-wide 404 (with public header/footer)
   (staff)/admin/      Staff area (noindex; toast container)
     auth/confirm/     Email-link callback (magic link, password reset)
@@ -39,15 +46,20 @@ app/
     (auth)/           Public: login, forgot-password; reset-password (needs session)
     (app)/            Signed-in staff: top bar + bottom tabs / sidebar
       vehicles/       List (status chips, search), new, [id] edit; actions.ts = all vehicle/photo server actions
+      requests/       Vehicle Finder requests (list, [id] detail); homepage/, settings/ — admins + posters
+                      given that area (requirePermission)
     api/vin/[vin]/    Staff-only NHTSA vPIC lookup (prefill)
     api/uploads/      The only way images reach Storage (checked + re-encoded)
-      (admin-only)/   Admin-only pages (homepage, settings, users, activity) — default home for new pages
+      (admin-only)/   Admin-only pages (users, activity) — default home for new pages
 components/
   ui/                 shadcn/ui components (generated; edit sparingly)
-  public/             Buyer-site components (cards, filters, gallery, share, action bar)
+  public/             Buyer-site components (list rows + grid cards, filter bar, gallery, share,
+                      vehicle-finder-form, legal-page)
+  turnstile.tsx       Cloudflare Turnstile widget (sign-in forms + Vehicle Finder)
   staff/              Staff-area components
     vehicle-form/     Posting form: photo-manager (upload queue, dnd reorder), photo-upload (compress + XHR upload)
-    homepage/         Homepage editor: slide list/dialog, scaled previews, brand images
+    homepage/         Homepage editor: slide list/dialog, scaled previews, sections form, brand images
+    requests/         Vehicle Finder request editor (status, notes, delete)
 lib/
   nhtsa.ts            VIN decode + mapping to our enums (server only)
   vehicle-options.ts  Feature checklist, color chips, description template
@@ -55,9 +67,13 @@ lib/
   site-images.ts      siteImageUrl() + brand image definitions (client and server)
   env.ts              Zod validation of env vars (run from next.config.ts; fails the build)
   security/           csp.ts (nonce CSP), audit.ts (activity log), rate-limit.ts, request-info.ts,
-                      image-check.ts (magic bytes), session-limits.ts
+                      image-check.ts (magic bytes), session-limits.ts, turnstile.ts (server
+                      verify), ip-hash.ts (HMAC of IPs)
+  notify.ts           Vehicle Finder email to the dealership (Resend; off without RESEND_API_KEY)
+  purge-requests.ts   Deletes requests closed > 12 months (daily cron)
   format.ts           Price/mileage formatting, enum labels, tel:/sms: hrefs
-  auth.ts             getStaff(), requireStaff(), requireAdmin() — server only
+  auth.ts             getStaff(), requireStaff(), requireAdmin(), requirePermission() — server only
+  permissions.ts      Poster access areas (requests, homepage, settings) + hasPermission()
   auth-paths.ts       Staff route constants, public-path list, safe redirect helper
   database.types.ts   Generated DB types (`pnpm db:types`) — do not edit by hand
   supabase/
@@ -98,7 +114,21 @@ docs/restore.md       Nightly backups (GitHub Actions) and how to restore
   if caching comes back).
 - Inventory filters are plain GET forms with native `<select>`s; every filter lives in the
   URL (`make`, `model`, `year_min/max`, `price_min/max`, `mileage_max`, `body`, `drivetrain`,
-  `fuel`, `sort`, `page`), validated by `lib/validation/inventory.ts` (bad values ignored).
+  `fuel`, `sort`, `page`, `per_page` 12/24/48, `view` list/grid), validated by
+  `lib/validation/inventory.ts` (bad values ignored). Build links with `inventoryHref()`.
+- Inventory layout: desktop filter bar across the top (each change applies at once); phones get
+  the Filters bottom sheet with every filter. Results bar: count, sort, List/Grid toggle, per page,
+  pager. List view = `vehicle-list-row.tsx` (photo + "Photos (N)" lightbox, spec table, price
+  box); grid = `vehicle-card.tsx` (1/2/3/4 columns). The view is remembered in localStorage
+  (`inventory-view`) and restored when the URL has no `?view`. Under the results: the
+  `price_disclaimer`. Prices are all-in: never add "plus dealer/doc fees" wording.
+- Homepage: hero carousel (text in one centered dark box), four quick-link tiles (labels in
+  `site_settings.tile_*_label`), "Welcome to …" with `home_welcome_subheading`, About text and
+  photo; one featured row only when `show_featured_on_home` is on.
+- `/terms` and `/privacy` render `site_settings.terms_md` / `privacy_md` with react-markdown
+  (raw HTML skipped, only http(s)/mailto/tel/internal links). A trigger bumps
+  `terms_updated_at` / `privacy_updated_at` when the text changes. Drafts contain [placeholders];
+  a lawyer should review before launch.
 - Images: `next/image` with the Supabase bucket in `images.remotePatterns`; always pass `sizes`.
   Photo cards and galleries are 4:3 `object-cover`.
 - `site_settings.hours` format: 7 entries Monday→Sunday,
@@ -129,11 +159,33 @@ docs/restore.md       Nightly backups (GitHub Actions) and how to restore
   verifications per IP. Tests that end sessions create their own user. Need `SUPABASE_SECRET_KEY`.
 - Next 16: use `preload` / `loading="eager"` on images, not the deprecated `priority`.
 
+## Vehicle Finder
+
+- `/vehicle-finder` (public): form validated by `lib/validation/vehicle-request.ts` (client and
+  server). Intro text: `site_settings.finder_intro` (Settings). Consent checkbox required.
+- `submitVehicleRequest` (server action): honeypot → 3 per IP per hour (`rate_limit_hit`) →
+  Turnstile (`TURNSTILE_SECRET_KEY`; skipped when unset) → Zod → insert with the secret key
+  (`ip_hash` = HMAC, never the raw IP) → email via `after()` (`notifyNewRequest`). Visitors have
+  **no** grants on `vehicle_requests`, so nobody can skip these checks via the API.
+- `vehicle_requests`: status `new | contacted | found | closed`, `admin_notes`, `closed_at` (set by
+  trigger when closed, cleared when reopened). Admins + posters with Requests access (RLS
+  `has_permission('requests')`); visitors nothing.
+- `/admin/requests` (Requests access): status chips, detail page with Call/Text/Email, status + notes,
+  delete; status changes and deletes go to the activity log. "New" count badge in the staff nav.
+  Phone tab bar: Vehicles, Add, Requests, Settings, Users (Homepage is linked from Settings,
+  Activity from Users; Users is greyed out for posters).
+- Closed requests are deleted 12 months after `closed_at` by the daily cron (`purge-requests.ts`).
+
 ## Admin pages (Stage 5)
 
 - `/admin` dashboard (all staff): counts, 5 recently updated, Add vehicle.
-- `/admin/settings`, `/admin/users` (admin only, in `(admin-only)/`): every page and action calls
+- `/admin/users`, `/admin/activity` (admin only, in `(admin-only)/`): every page and action calls
   `requireAdmin()`. Posters see these nav items greyed out (not links); typed URLs redirect.
+- `/admin/settings`, `/admin/homepage`, `/admin/requests`: admins, and posters an admin gave that
+  area to (`requirePermission("settings" | "homepage" | "requests")`, migration 020). Without it
+  the nav item is greyed out ("no access") and typed URLs redirect to the dashboard.
+- Users page → Actions → **Access…** (posters only): three switches, saved by
+  `setUserPermissions` (audited as `permissions_changed`). Nobody can change their own access.
 - Users: invite (email or "Copy invite link" via `generateLink`), password reset (email or copy
   link), deactivate/reactivate, role change. Nobody can change their own role/active.
 - Invite links land on `/admin/welcome` (set password). Copied links go through
@@ -141,12 +193,14 @@ docs/restore.md       Nightly backups (GitHub Actions) and how to restore
 
 ## Homepage editor
 
-- `/admin/homepage` (admin only): hero slides (`hero_slides`), carousel autoplay/interval, and brand
-  images in `site_settings` (`logo_path`, `logo_dark_path`, `favicon_path`, `about_image_path`,
+- `/admin/homepage` (Homepage access): hero slides (`hero_slides`), carousel autoplay/interval, homepage
+  sections (welcome subheading, tile labels, featured toggle), and brand images in `site_settings` (`logo_path`, `logo_dark_path`, `favicon_path`, `about_image_path`,
   `og_default_image_path`). Every action calls `revalidatePath("/", "layout")`.
 - Image paths: a leading `/` is a static file in `public/` (only the migration-seeded logos,
   `/brand/logo-full*.png`); anything else is in the `site-images` bucket. Always use
   `siteImageUrl()`. Static files are never deleted.
+- Slide text (headline, one paragraph, one button) always sits in a centered dark box;
+  `text_position` is kept in the DB but no longer used or editable. `overlay_strength` tints the image.
 - Slides may have a portrait `mobile_image_path` (served below 768px via `<picture>` +
   `getImageProps()`); without one, the desktop image is cropped around `focal_point`. Button
   links are internal paths or `tel:+1…`.
@@ -194,13 +248,19 @@ Roles live in `profiles.role` (`admin` | `poster`). `private.is_staff()` / `priv
 enforces session limits, even for someone with a valid token. No two-factor (removed by decision,
 migration 017).
 
-| Who                   | vehicles                                     | vehicle_photos + storage files           | profiles           | site_settings / hero_slides | audit_log |
-| --------------------- | -------------------------------------------- | ---------------------------------------- | ------------------ | --------------------------- | --------- |
-| Public (anon)         | Read available / pending / sold (not drafts) | Read photos of those; files by URL       | —                  | Read (live slides only)     | —         |
-| Poster (live session) | Read all, create, edit, mark sold, delete    | Read, edit, delete rows; delete files    | Read own row       | Read                        | —         |
-| Admin (live session)  | Same as poster + change `featured`           | Same as poster; delete site-images files | Read all, edit all | Read, edit                  | Read      |
-| Idle / inactive       | Same as public                               | Same as public                           | Read own row       | Read                        | —         |
+| Who                   | vehicles                                     | vehicle_photos + storage files        | profiles           | site_settings / hero_slides | audit_log | vehicle_requests                |
+| --------------------- | -------------------------------------------- | ------------------------------------- | ------------------ | --------------------------- | --------- | ------------------------------- |
+| Public (anon)         | Read available / pending / sold (not drafts) | Read photos of those; files by URL    | —                  | Read (live slides only)     | —         | — (the server inserts)          |
+| Poster (live session) | Read all, create, edit, mark sold, delete    | Read, edit, delete rows; delete files | Read own row       | Read; edit with access ¹    | —         | With Requests access ¹          |
+| Admin (live session)  | Same as poster + change `featured`           | Same as poster                        | Read all, edit all | Read, edit                  | Read      | Read, edit status/notes, delete |
+| Idle / inactive       | Same as public                               | Same as public                        | Read own row       | Read                        | —         | —                               |
 
+- ¹ Poster access areas (`profiles.permissions`, checked by `private.has_permission()`, which is
+  always true for admins): **Settings** = site_settings fields except the homepage ones;
+  **Homepage** = hero_slides, site-images files and the homepage fields of site_settings (logo,
+  images, carousel, tiles, welcome subheading, featured toggle); **Requests** = vehicle_requests.
+  One row holds both kinds of settings, so the `protect_site_settings_areas` trigger checks which
+  fields changed. Add new homepage columns to its key list (migration 021).
 - **Nobody** uploads to Storage from the browser: only `POST /admin/api/uploads` (secret key, after
   checks). No SVG anywhere. Buckets are public by URL, not listable, never overwritten.
 - `audit_log` is insert-only for everyone (trigger blocks update/delete/truncate, even the secret
@@ -212,9 +272,10 @@ migration 017).
 - The secret key (`SUPABASE_SECRET_KEY`) bypasses all of the above. In app code it may ONLY be
   used via `createAdminClient()` (`lib/supabase/admin.ts`, server-only; ESLint enforces the env
   read) — after `requireAdmin()` / `checkStaff()`, in `lib/security/*` (audit log, rate limits),
-  or in a trusted job (cron). Local scripts/tests create their own client.
+  in a trusted job (cron), or in `submitVehicleRequest` after its spam checks. Local scripts/tests create their own client.
 - Sold cars are purged 31 days after `sold_at` by the daily cron (`/api/cron/purge-sold`, Bearer
-  `CRON_SECRET`, constant-time check), which also cleans up rate-limit/session rows.
+  `CRON_SECRET`, constant-time check), which also deletes Vehicle Finder requests closed > 12 months
+  ago and cleans up rate-limit/session rows.
 
 ### Staff auth (app layer)
 
@@ -228,7 +289,8 @@ migration 017).
 3. RLS (above).
 
 - Sign-in: password or magic link (both logged as "Signed in" in the activity log). No two-factor.
-- Login protection: Turnstile (when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set; Supabase verifies it),
+- Login protection: Turnstile (when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set; Supabase verifies it;
+  the Vehicle Finder is verified by our server with `TURNSTILE_SECRET_KEY`),
   20 attempts/IP/15 min, 5 failures lock an account for 15 min, email links 5/IP/15 min and
   3/email/hour, generic messages only ("Invalid email or password", "If that email exists…").
   Per-IP limits trust Vercel's `x-real-ip`/`x-forwarded-for` (fine on Vercel only).
@@ -238,8 +300,10 @@ migration 017).
   Limits live in `lib/security/session-limits.ts` and must match migration 015.
 - Redirect targets (`next`) always go through `safeAdminPath()` (internal `/admin` paths only).
 
-Posters may only use `/admin` and `/admin/vehicles/**`. Put every other staff page in
-`app/(staff)/admin/(app)/(admin-only)/` and call `requireAdmin()` in it.
+Posters may use `/admin` and `/admin/vehicles/**`, plus `/admin/requests/**`, `/admin/homepage`
+and `/admin/settings` when given that area. Put every other staff page in
+`app/(staff)/admin/(app)/(admin-only)/` and call `requireAdmin()` in it (or, if it belongs to an
+area, `requirePermission()`).
 
 ### Rules for future changes
 
@@ -254,7 +318,8 @@ Posters may only use `/admin` and `/admin/vehicles/**`. Put every other staff pa
   `'strict-dynamic'`). New third-party origins (images, APIs, frames) go in `lib/security/csp.ts`.
 - Files: only through `/admin/api/uploads` (magic bytes + sharp). Never allow SVG.
 - Secrets only in `.env.local` / Vercel; env vars are validated in `lib/env.ts` (add new ones
-  there). Server-only modules import `"server-only"`. The gitleaks pre-commit hook and CI must pass.
+  there). Optional: `TURNSTILE_SECRET_KEY`, `RESEND_API_KEY` + `NOTIFY_EMAIL` (+ `NOTIFY_FROM` on a
+  Resend-verified domain), `IP_HASH_SECRET` (else `CRON_SECRET` keys the IP hashes). Server-only modules import `"server-only"`. The gitleaks pre-commit hook and CI must pass.
 
 ## Rules
 
