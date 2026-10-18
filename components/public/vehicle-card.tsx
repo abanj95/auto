@@ -1,15 +1,17 @@
-import { Car } from "lucide-react";
+import { Car, Gauge } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
 import { VehicleBadges } from "@/components/public/vehicle-badges";
-import { DRIVETRAIN_LABELS, formatMileage, formatPrice, vehicleTitle } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { formatMileage, formatPrice, vehicleTitle } from "@/lib/format";
 import type { VehicleCardData } from "@/lib/public-data";
 
-/** Phones get a full-width image; tablets half; desktop a third. */
+/** 1 column on phones, 2 on tablets, 3 on laptops, 4 on wide screens. */
 export const CARD_IMAGE_SIZES =
-  "(min-width: 1280px) 400px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
+  "(min-width: 1280px) 300px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
 
+/** Grid view: photo, title (2 lines max), mileage, price box, View details. */
 export function VehicleCard({
   vehicle: v,
   eager,
@@ -18,20 +20,19 @@ export function VehicleCard({
   /** Load immediately (cards that may be the largest image on screen). */
   eager?: boolean;
 }) {
-  const details = [formatMileage(v.mileage), v.drivetrain && DRIVETRAIN_LABELS[v.drivetrain]]
-    .filter(Boolean)
-    .join(" · ");
+  const href = `/inventory/${v.slug}`;
+  const title = [vehicleTitle(v), v.trim].filter(Boolean).join(" ");
 
   return (
-    <Link
-      href={`/inventory/${v.slug}`}
-      className="group block overflow-hidden rounded-xl border bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    <article
+      className="group flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition hover:shadow-md"
+      data-testid="vehicle-card"
     >
-      <div className="relative aspect-[4/3] bg-muted">
+      <Link href={href} className="relative block aspect-[4/3] bg-muted" tabIndex={-1} aria-hidden>
         {v.coverUrl ? (
           <Image
             src={v.coverUrl}
-            alt={`${vehicleTitle(v)} ${v.trim ?? ""}`.trim()}
+            alt=""
             fill
             sizes={CARD_IMAGE_SIZES}
             loading={eager ? "eager" : undefined}
@@ -43,13 +44,31 @@ export function VehicleCard({
           </div>
         )}
         <VehicleBadges vehicle={v} className="absolute top-3 left-3" />
+      </Link>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <h3 className="line-clamp-2 min-h-[2.5em] text-base leading-tight font-extrabold tracking-tight uppercase">
+          <Link href={href} className="hover:text-brand">
+            {title}
+          </Link>
+        </h3>
+        <p className="flex items-center gap-1.5 text-sm text-neutral-600">
+          <Gauge className="size-4" aria-hidden />
+          {v.mileage !== null ? formatMileage(v.mileage) : "Mileage —"}
+        </p>
+        <div className="mt-auto rounded-lg border-2 border-neutral-200 px-3 py-2 text-center">
+          <p className="text-xs font-semibold tracking-wide text-neutral-600 uppercase">
+            Our price
+          </p>
+          <p className="text-2xl font-extrabold tracking-tight text-brand">
+            {formatPrice(v.price)}
+          </p>
+        </div>
+        <Button asChild className="h-11 w-full font-bold tracking-wide uppercase">
+          <Link href={href}>
+            View details<span className="sr-only">: {title}</span>
+          </Link>
+        </Button>
       </div>
-      <div className="space-y-1 p-4">
-        <h3 className="text-lg leading-tight font-bold tracking-tight">{vehicleTitle(v)}</h3>
-        {v.trim && <p className="truncate text-sm text-muted-foreground">{v.trim}</p>}
-        <p className="pt-2 text-2xl font-extrabold tracking-tight">{formatPrice(v.price)}</p>
-        {details && <p className="text-sm text-muted-foreground">{details}</p>}
-      </div>
-    </Link>
+    </article>
   );
 }

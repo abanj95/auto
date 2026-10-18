@@ -2,7 +2,10 @@ import { z } from "zod";
 
 import { Constants } from "@/lib/database.types";
 
-export const PAGE_SIZE = 24;
+export const PER_PAGE_OPTIONS = [12, 24, 48] as const;
+export const DEFAULT_PER_PAGE = 24;
+export const VIEWS = ["list", "grid"] as const;
+export type View = (typeof VIEWS)[number];
 
 export const SORTS = {
   newest: "Newest",
@@ -35,6 +38,11 @@ export const inventoryFiltersSchema = z.object({
   fuel: oneOf(Constants.public.Enums.vehicle_fuel_type),
   sort: z.preprocess(first, z.enum(Object.keys(SORTS) as [Sort, ...Sort[]])).catch("newest"),
   page: z.preprocess(first, z.coerce.number().int().min(1).max(1000)).catch(1),
+  per_page: z
+    .preprocess(first, z.coerce.number().pipe(z.literal(PER_PAGE_OPTIONS)))
+    .catch(DEFAULT_PER_PAGE),
+  /** undefined = the default view (and the browser may restore a saved choice). */
+  view: oneOf(VIEWS),
 });
 export type InventoryFilters = z.infer<typeof inventoryFiltersSchema>;
 
@@ -54,3 +62,24 @@ export const FILTER_KEYS = [
 
 export const PRICE_STEPS = [5000, 10000, 15000, 20000, 25000, 30000, 40000, 50000, 75000];
 export const MILEAGE_STEPS = [25000, 50000, 75000, 100000, 125000, 150000, 200000];
+
+/**
+ * /inventory URL for these filters with some values changed. Defaults (newest,
+ * 24 per page, page 1, no view) are left out so URLs stay short.
+ */
+export function inventoryHref(
+  f: InventoryFilters,
+  changes: Partial<Record<keyof InventoryFilters, string | number | undefined>> = {},
+) {
+  const merged: Record<string, unknown> = { ...f, ...changes };
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(merged)) {
+    if (value === undefined || value === "") continue;
+    if (key === "sort" && value === "newest") continue;
+    if (key === "page" && Number(value) === 1) continue;
+    if (key === "per_page" && Number(value) === DEFAULT_PER_PAGE) continue;
+    params.set(key, String(value));
+  }
+  const query = params.toString();
+  return query ? `/inventory?${query}` : "/inventory";
+}

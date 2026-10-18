@@ -6,7 +6,7 @@ import type { Enums, Tables } from "@/lib/database.types";
 import { siteImageUrl } from "@/lib/site-images";
 import { createPublicClient } from "@/lib/supabase/public";
 import type { FocalPoint, Overlay, TextPosition } from "@/lib/validation/homepage";
-import { PAGE_SIZE, type InventoryFilters } from "@/lib/validation/inventory";
+import type { InventoryFilters } from "@/lib/validation/inventory";
 import { hoursSchema, type Hours } from "@/lib/validation/site-settings";
 
 // All public reads go through here. RLS already hides drafts from the anon
@@ -80,7 +80,7 @@ export async function getHeroSlides() {
 // ---------------------------------------------------------------- cards
 
 const CARD_SELECT =
-  "id, slug, year, make, model, trim, price, mileage, drivetrain, status, published_at, is_demo, vehicle_photos(storage_path, width, height, sort_order)";
+  "id, slug, year, make, model, trim, price, mileage, drivetrain, transmission, engine, exterior_color, interior_color, vin, stock_no, status, published_at, is_demo, vehicle_photos(storage_path, width, height, sort_order), photo_count:vehicle_photos(count)";
 
 type CardRow = Pick<
   Tables<"vehicles">,
@@ -93,6 +93,12 @@ type CardRow = Pick<
   | "price"
   | "mileage"
   | "drivetrain"
+  | "transmission"
+  | "engine"
+  | "exterior_color"
+  | "interior_color"
+  | "vin"
+  | "stock_no"
   | "status"
   | "published_at"
   | "is_demo"
@@ -101,13 +107,21 @@ type CardRow = Pick<
     Tables<"vehicle_photos">,
     "storage_path" | "width" | "height" | "sort_order"
   >[];
+  photo_count: { count: number }[];
 };
 
-export type VehicleCardData = Omit<CardRow, "vehicle_photos"> & { coverUrl: string | null };
+export type VehicleCardData = Omit<CardRow, "vehicle_photos" | "photo_count"> & {
+  coverUrl: string | null;
+  photoCount: number;
+};
 
-function toCard({ vehicle_photos, ...v }: CardRow): VehicleCardData {
+function toCard({ vehicle_photos, photo_count, ...v }: CardRow): VehicleCardData {
   const cover = [...vehicle_photos].sort((a, b) => a.sort_order - b.sort_order)[0];
-  return { ...v, coverUrl: cover ? photoUrl(cover.storage_path) : null };
+  return {
+    ...v,
+    coverUrl: cover ? photoUrl(cover.storage_path) : null,
+    photoCount: photo_count[0]?.count ?? 0,
+  };
 }
 
 function cardQuery() {
@@ -123,15 +137,6 @@ export async function getFeaturedVehicles(limit = 6) {
   const { data, error } = await cardQuery()
     .in("status", LISTED)
     .eq("featured", true)
-    .order("published_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
-  if (error) throw error;
-  return (data as CardRow[]).map(toCard);
-}
-
-export async function getNewestVehicles(limit = 6) {
-  const { data, error } = await cardQuery()
-    .eq("status", "available")
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) throw error;
@@ -194,8 +199,8 @@ export async function searchInventory(f: InventoryFilters) {
   // Stable order across pages.
   q = q.order("id");
 
-  const from = (f.page - 1) * PAGE_SIZE;
-  const { data, count, error } = await q.range(from, from + PAGE_SIZE - 1);
+  const from = (f.page - 1) * f.per_page;
+  const { data, count, error } = await q.range(from, from + f.per_page - 1);
   // Asking for a page past the end returns a range error; treat as empty.
   if (error && error.code !== "PGRST103") throw error;
   return { vehicles: ((data ?? []) as CardRow[]).map(toCard), total: count ?? 0 };
@@ -232,6 +237,22 @@ export const getInventoryFacets = cache(async () => {
 });
 
 // ---------------------------------------------------------------- vehicle page
+
+/** Photo URLs of a listed (non-draft) vehicle, for the inventory page's lightbox. */
+export async function getVehiclePhotos(slug: string) {
+  const { data, error } = await createPublicClient()
+    .from("vehicles")
+    .select("vehicle_photos(storage_path, width, height, sort_order)")
+    .eq("slug", slug)
+    .order("sort_order", { referencedTable: "vehicle_photos" })
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.vehicle_photos ?? []).map((p) => ({
+    src: photoUrl(p.storage_path),
+    width: p.width ?? 1600,
+    height: p.height ?? 1200,
+  }));
+}
 
 export const getVehicleBySlug = cache(async (slug: string) => {
   const { data, error } = await createPublicClient()
