@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { audit } from "@/lib/security/audit";
 import { createClient } from "@/lib/supabase/server";
 import { siteSettingsSchema, type SiteSettingsFormValues } from "@/lib/validation/site-settings";
@@ -10,9 +10,9 @@ import { siteSettingsSchema, type SiteSettingsFormValues } from "@/lib/validatio
 export type SettingsResult =
   { ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
-/** Admin only. Saves the single site_settings row and refreshes every public page. */
+/** Admins and posters with Settings access. Saves the single site_settings row and refreshes every public page. */
 export async function saveSiteSettings(values: SiteSettingsFormValues): Promise<SettingsResult> {
-  const { userId } = await requireAdmin();
+  const { userId } = await requirePermission("settings");
 
   const parsed = siteSettingsSchema.safeParse(values);
   if (!parsed.success) {

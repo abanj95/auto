@@ -1,4 +1,4 @@
-import { CirclePlus } from "lucide-react";
+import { CirclePlus, House } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -6,6 +6,7 @@ import { DeniedToast } from "@/components/staff/denied-toast";
 import { STAFF_ROW_SELECT, VehicleRow } from "@/components/staff/vehicle-row";
 import { Button } from "@/components/ui/button";
 import { DENIED_PARAM, requireStaff } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { daysAgoIso } from "@/lib/sold-retention";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -80,11 +81,21 @@ export default async function DashboardPage({ searchParams }: PageProps<"/admin"
         </div>
       </div>
 
-      <Button asChild size="lg" className="h-14 w-full text-base font-semibold sm:w-auto sm:px-8">
-        <Link href="/admin/vehicles/new">
-          <CirclePlus className="size-5" aria-hidden /> Add vehicle
-        </Link>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="lg" className="h-14 w-full text-base font-semibold sm:w-auto sm:px-8">
+          <Link href="/admin/vehicles/new">
+            <CirclePlus className="size-5" aria-hidden /> Add vehicle
+          </Link>
+        </Button>
+        {/* Phones: the Homepage editor isn't in the tab bar. */}
+        {hasPermission(profile, "homepage") && (
+          <Button asChild variant="outline" size="lg" className="h-12 w-full md:hidden">
+            <Link href="/admin/homepage">
+              <House aria-hidden /> Edit the homepage
+            </Link>
+          </Button>
+        )}
+      </div>
 
       <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((t) => (

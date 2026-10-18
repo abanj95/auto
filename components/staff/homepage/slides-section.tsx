@@ -26,7 +26,7 @@ import {
   deleteSlide,
   reorderSlides,
   setSlideActive,
-} from "@/app/(staff)/admin/(app)/(admin-only)/homepage/actions";
+} from "@/app/(staff)/admin/(app)/homepage/actions";
 import { HeroSlide } from "@/components/public/hero-slide";
 import { ConfirmDialog } from "@/components/staff/confirm-dialog";
 import { ScaledPreview } from "@/components/staff/homepage/scaled-preview";
@@ -48,7 +48,7 @@ const STATUS: Record<SlideStatus, { label: string; className: string }> = {
   hidden: { label: "Hidden", className: "bg-muted text-muted-foreground" },
 };
 
-export function SlidesSection({ slides, eyebrow }: { slides: AdminSlide[]; eyebrow: string }) {
+export function SlidesSection({ slides }: { slides: AdminSlide[] }) {
   // Local copy for drag-and-drop; reset whenever the server sends new data.
   const [items, setItems] = useState(slides);
   const [prevSlides, setPrevSlides] = useState(slides);
@@ -135,7 +135,6 @@ export function SlidesSection({ slides, eyebrow }: { slides: AdminSlide[]; eyebr
                 <SlideRow
                   key={slide.id}
                   slide={slide}
-                  eyebrow={eyebrow}
                   onEdit={() => openEditor(slide)}
                   onDelete={() => setToDelete(slide)}
                   onToggle={(active) => void toggle(slide, active)}
@@ -146,13 +145,7 @@ export function SlidesSection({ slides, eyebrow }: { slides: AdminSlide[]; eyebr
         </DndContext>
       )}
 
-      <SlideDialog
-        key={dialogKey}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        slide={editing}
-        eyebrow={eyebrow}
-      />
+      <SlideDialog key={dialogKey} open={dialogOpen} onOpenChange={setDialogOpen} slide={editing} />
       <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}
@@ -170,13 +163,11 @@ export function SlidesSection({ slides, eyebrow }: { slides: AdminSlide[]; eyebr
 
 function SlideRow({
   slide,
-  eyebrow,
   onEdit,
   onDelete,
   onToggle,
 }: {
   slide: AdminSlide;
-  eyebrow: string;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: (active: boolean) => void;
@@ -216,7 +207,6 @@ function SlideRow({
             overlay_strength: slide.overlay_strength as Overlay,
             focal_point: slide.focal_point as FocalPoint,
           }}
-          eyebrow={eyebrow}
           preview="desktop"
           className="size-full"
         />

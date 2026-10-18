@@ -103,3 +103,13 @@ export function smsHref(phone: string, body?: string) {
   const base = `sms:${phoneHref(phone)}`;
   return body ? `${base}?&body=${encodeURIComponent(body)}` : base;
 }
+
+/** "2026-10-18" → "Oct 18, 2026" (dates without a time, so no timezone shift). */
+export function formatDay(day: string) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}

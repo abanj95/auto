@@ -143,6 +143,9 @@ export const siteSettingsSchema = z.object({
   hours: hoursSchema,
   about_text: optional(4000),
   price_disclaimer: z.string().trim().min(1, "Enter a price disclaimer.").max(300),
+  finder_intro: z.string().trim().min(1, "Enter the Vehicle Finder intro.").max(600),
+  terms_md: z.string().trim().max(50000, "Use 50,000 characters or fewer."),
+  privacy_md: z.string().trim().max(50000, "Use 50,000 characters or fewer."),
   facebook_url: linkTo(
     /^(www\.|m\.)?(facebook|fb)\.com\//,
     "Paste the full Facebook page link, e.g. https://www.facebook.com/mcrowinauto",

@@ -94,6 +94,20 @@ export const carouselSettingsSchema = z.object({
 });
 export type CarouselSettingsValues = z.input<typeof carouselSettingsSchema>;
 
+const label = (name: string, max: number) =>
+  z.string().trim().min(1, `Enter the ${name}.`).max(max, `Use ${max} characters or fewer.`);
+
+/** Homepage sections below the hero (site_settings). */
+export const homepageSectionsSchema = z.object({
+  home_welcome_subheading: label("welcome subheading", 120),
+  tile_inventory_label: label("label", 30),
+  tile_finder_label: label("label", 30),
+  tile_visit_label: label("label", 30),
+  tile_call_label: label("label", 30),
+  show_featured_on_home: z.boolean(),
+});
+export type HomepageSectionsValues = z.input<typeof homepageSectionsSchema>;
+
 /** Brand images: paths the upload route creates (logos/icons PNG, photos WebP/JPEG). No SVG. */
 export const brandImageSchema = z.object({
   key: z.enum(BRAND_IMAGE_KEYS as [string, ...string[]]),

@@ -4,6 +4,7 @@ import {
   EllipsisVertical,
   KeyRound,
   Link2,
+  SlidersHorizontal,
   ShieldCheck,
   ShieldOff,
   UserCheck,
@@ -19,6 +20,7 @@ import {
   setUserRole,
 } from "@/app/(staff)/admin/(app)/(admin-only)/users/actions";
 import { ConfirmDialog } from "@/components/staff/confirm-dialog";
+import { AccessDialog } from "@/components/staff/users/access-dialog";
 import { ShareLinkDialog } from "@/components/staff/users/share-link-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +39,7 @@ type StaffUser = {
   role: Enums<"user_role">;
   active: boolean;
   invited: boolean;
+  permissions: string[];
 };
 
 type Confirm = { title: string; description: string; label: string; run: () => void };
@@ -46,6 +49,7 @@ export function UserActionsMenu({ user, isSelf }: { user: StaffUser; isSelf: boo
   const [pending, startTransition] = useTransition();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  const [accessOpen, setAccessOpen] = useState(false);
 
   function run(
     action: () => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>,
@@ -106,6 +110,11 @@ export function UserActionsMenu({ user, isSelf }: { user: StaffUser; isSelf: boo
           {!isSelf && (
             <>
               <DropdownMenuSeparator />
+              {user.role === "poster" && (
+                <DropdownMenuItem className="h-11" onSelect={() => setAccessOpen(true)}>
+                  <SlidersHorizontal aria-hidden /> Access…
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 className="h-11"
                 onSelect={() =>
@@ -116,8 +125,8 @@ export function UserActionsMenu({ user, isSelf }: { user: StaffUser; isSelf: boo
                         : `Make ${user.name} a poster?`,
                     description:
                       other === "admin"
-                        ? "Admins can also change site settings and manage users."
-                        : "They'll lose access to Settings and Users.",
+                        ? "Admins can do everything, including managing users."
+                        : "They'll keep only the extra access you've turned on for them.",
                     label: other === "admin" ? "Make admin" : "Make poster",
                     run: () =>
                       run(
@@ -173,6 +182,7 @@ export function UserActionsMenu({ user, isSelf }: { user: StaffUser; isSelf: boo
           setConfirm(null);
         }}
       />
+      {accessOpen && <AccessDialog user={user} open={accessOpen} onOpenChange={setAccessOpen} />}
       <ShareLinkDialog
         link={link}
         title={

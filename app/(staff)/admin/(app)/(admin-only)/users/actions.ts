@@ -11,7 +11,7 @@ import { audit } from "@/lib/security/audit";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { inviteSchema, type InviteInput } from "@/lib/validation/users";
+import { inviteSchema, permissionsSchema, type InviteInput } from "@/lib/validation/users";
 
 // Admin only (requireAdmin in every action). The secret-key client is used only
 // for Auth admin calls (invite, links, bans); profile changes go through the
@@ -234,6 +234,50 @@ export async function setUserRole(
     targetId: userId,
     details: { from: before?.role ?? null, to: role },
     alert: true,
+  });
+  revalidatePath("/admin/users");
+  return { ok: true, data: null };
+}
+
+// ------------------------------------------------------------------ poster access
+
+/**
+ * Which extra areas a poster may manage (Requests, Homepage, Settings).
+ * Admins always have all of them, so this only applies to posters.
+ */
+export async function setUserPermissions(
+  userId: string,
+  permissions: string[],
+): Promise<UserActionResult> {
+  const guard = await requireOtherUser(userId);
+  if ("denied" in guard) return guard.denied;
+  const parsed = permissionsSchema.safeParse(permissions);
+  if (!parsed.success) return fail("Unknown access level.");
+
+  const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("profiles")
+    .select("role, permissions")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!before) return fail("User not found.");
+  if (before.role === "admin") return fail("Admins already have access to everything.");
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ permissions: parsed.data })
+    .eq("id", userId);
+  if (error) {
+    console.error("setUserPermissions failed", error.code);
+    return fail("Couldn't save the access. Please try again.");
+  }
+  await audit({
+    action: "permissions_changed",
+    userId: guard.me,
+    targetType: "user",
+    targetId: userId,
+    details: { from: before.permissions, to: parsed.data },
+    alert: parsed.data.some((p) => !before.permissions.includes(p)),
   });
   revalidatePath("/admin/users");
   return { ok: true, data: null };

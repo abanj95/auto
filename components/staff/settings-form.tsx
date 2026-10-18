@@ -1,17 +1,19 @@
 "use client";
 
-import { Info, Loader2 } from "lucide-react";
+import { House, Info, Loader2, Scale } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Controller, useForm, type Path } from "react-hook-form";
 import { toast } from "sonner";
 
-import { saveSiteSettings } from "@/app/(staff)/admin/(app)/(admin-only)/settings/actions";
+import { saveSiteSettings } from "@/app/(staff)/admin/(app)/settings/actions";
 import { useUnsavedWarning } from "@/components/staff/use-unsaved-warning";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   DAY_NAMES,
@@ -24,9 +26,14 @@ type FieldName = Path<SiteSettingsFormValues>;
 export function SettingsForm({
   initial,
   hoursWereSet,
+  legalUpdated,
+  canEditHomepage,
 }: {
   initial: SiteSettingsFormValues;
   hoursWereSet: boolean;
+  /** "last updated" dates of the legal pages (YYYY-MM-DD). */
+  legalUpdated: { terms: string; privacy: string };
+  canEditHomepage: boolean;
 }) {
   const form = useForm<SiteSettingsFormValues>({ defaultValues: initial });
   const { control, register, formState, getValues } = form;
@@ -116,6 +123,16 @@ export function SettingsForm({
         <p className="text-sm text-muted-foreground">
           Shown in the public site&apos;s header, footer, About and Contact pages.
         </p>
+        {/* Phones: the Homepage editor isn't in the tab bar. */}
+        {canEditHomepage && (
+          <Link
+            href="/admin/homepage"
+            className="mt-3 flex h-11 items-center gap-2 rounded-lg border px-3 text-sm font-semibold md:hidden"
+          >
+            <House className="size-4 text-primary" aria-hidden /> Edit the homepage (slides, images,
+            tiles)
+          </Link>
+        )}
       </div>
 
       <Section title="Dealership">
@@ -290,6 +307,60 @@ export function SettingsForm({
             {...register("price_disclaimer")}
             rows={2}
             className="text-base"
+          />
+        </Field>
+      </Section>
+
+      <Section title="Vehicle Finder">
+        <Field
+          name="finder_intro"
+          label="Intro text"
+          error={err("finder_intro")}
+          hint="Shown at the top of the Vehicle Finder page."
+        >
+          <Textarea
+            id="finder_intro"
+            {...register("finder_intro")}
+            rows={3}
+            className="text-base"
+          />
+        </Field>
+      </Section>
+
+      <Section title="Legal pages">
+        <p className="flex gap-2 rounded-lg bg-amber-50 p-3 text-sm font-medium text-amber-900">
+          <Scale className="mt-0.5 size-4 shrink-0" aria-hidden />
+          Have a lawyer review before publishing. Replace every [placeholder] with your details.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Markdown: <code>## Heading</code>, <code>**bold**</code>, <code>- list item</code>,{" "}
+          <code>[link text](https://…)</code>. The &ldquo;last updated&rdquo; date changes
+          automatically when you save new text.
+        </p>
+        <Field
+          name="terms_md"
+          label="Terms of Use"
+          error={err("terms_md")}
+          hint={`Last updated ${formatDay(legalUpdated.terms)} · /terms`}
+        >
+          <Textarea
+            id="terms_md"
+            {...register("terms_md")}
+            rows={14}
+            className="font-mono text-sm"
+          />
+        </Field>
+        <Field
+          name="privacy_md"
+          label="Privacy Policy"
+          error={err("privacy_md")}
+          hint={`Last updated ${formatDay(legalUpdated.privacy)} · /privacy`}
+        >
+          <Textarea
+            id="privacy_md"
+            {...register("privacy_md")}
+            rows={14}
+            className="font-mono text-sm"
           />
         </Field>
       </Section>

@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS = {
   password_reset_sent: "Password reset link created",
   user_invited: "Invited a user",
   role_changed: "Changed a role",
+  permissions_changed: "Changed a poster's access",
   user_deactivated: "Deactivated a user",
   user_reactivated: "Reactivated a user",
   vehicle_created: "Created a vehicle",
@@ -27,6 +28,8 @@ export const AUDIT_ACTIONS = {
   vehicle_deleted: "Deleted a vehicle",
   settings_changed: "Changed site settings",
   homepage_changed: "Changed the homepage",
+  request_status_changed: "Changed a Vehicle Finder request",
+  request_deleted: "Deleted a Vehicle Finder request",
 } as const;
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
 

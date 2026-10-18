@@ -5,9 +5,13 @@ import { cache } from "react";
 
 import { DASHBOARD_PATH, LOGIN_PATH, SIGN_OUT_PATH } from "@/lib/auth-paths";
 import type { Tables } from "@/lib/database.types";
+import { hasPermission, type Permission } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 
-export type StaffProfile = Pick<Tables<"profiles">, "id" | "full_name" | "role" | "active">;
+export type StaffProfile = Pick<
+  Tables<"profiles">,
+  "id" | "full_name" | "role" | "active" | "permissions"
+>;
 
 export const DISABLED_MESSAGE = "Your account is disabled.";
 export const DENIED_PARAM = "denied";
@@ -28,7 +32,11 @@ export const getStaff = cache(async () => {
   if (!claims || !userId) return null;
 
   const [{ data: profile }, session] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, role, active").eq("id", userId).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("id, full_name, role, active, permissions")
+      .eq("id", userId)
+      .maybeSingle(),
     supabase.rpc("touch_staff_session").then(({ data, error }) => {
       if (error) console.error("touch_staff_session failed", error.code);
       return (data ?? "none") as SessionStatus;
@@ -65,6 +73,16 @@ export async function requireAdmin() {
 }
 
 /**
+ * Admins, or posters an admin gave this area to on the Users page (Requests,
+ * Homepage, Settings). Others are sent to the dashboard with a toast.
+ */
+export async function requirePermission(area: Permission) {
+  const staff = await requireStaff();
+  if (!hasPermission(staff.profile, area)) redirect(`${DASHBOARD_PATH}?${DENIED_PARAM}=1`);
+  return staff;
+}
+
+/**
  * For route handlers (JSON APIs): same checks as requireStaff() without
  * redirects. Returns the staff member, or an HTTP status to send.
  */
@@ -72,13 +90,14 @@ type Staff = NonNullable<Awaited<ReturnType<typeof getStaff>>>;
 type CheckedStaff = Staff & { profile: NonNullable<Staff["profile"]> };
 
 export async function checkStaff(
-  role?: "admin",
+  need?: "admin" | Permission,
 ): Promise<{ error: 401 | 403 } | { staff: CheckedStaff }> {
   const staff = await getStaff();
   if (!staff || !staff.profile?.active || staff.session !== "ok") {
     return { error: 401 };
   }
-  if (role === "admin" && staff.profile.role !== "admin") return { error: 403 };
+  if (need === "admin" && staff.profile.role !== "admin") return { error: 403 };
+  if (need && need !== "admin" && !hasPermission(staff.profile, need)) return { error: 403 };
   return { staff: { ...staff, profile: staff.profile } };
 }
 

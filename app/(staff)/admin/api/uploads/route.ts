@@ -14,7 +14,7 @@ import { MAX_PHOTOS } from "@/lib/validation/vehicle";
  * POST /admin/api/uploads?kind=…  (raw image bytes in the body)
  *
  * The only way images get into Storage (browsers have no write access):
- * staff only (admins for site images), same-origin, ≤ 4 MB, real JPEG/PNG/WebP
+ * signed-in staff (site images: Homepage access), same-origin, ≤ 4 MB, real JPEG/PNG/WebP
  * by magic bytes (no SVG), re-encoded with sharp (drops metadata and anything
  * hidden in the file), stored under a random name with the secret key.
  */
@@ -22,29 +22,38 @@ import { MAX_PHOTOS } from "@/lib/validation/vehicle";
 const MAX_BYTES = 4 * 1024 * 1024; // Under Vercel's 4.5 MB request limit.
 
 type Output = { format: "webp" | "jpeg" | "png"; maxWidth: number; maxHeight: number };
-const KINDS: Record<string, { folder: string; admin: boolean; output: Output }> = {
+// Vehicle photos: any staff member. Site images: Homepage access (admins, or
+// posters given it on the Users page).
+const KINDS: Record<string, { folder: string; need?: "homepage"; output: Output }> = {
   vehicle: {
     folder: "",
-    admin: false,
     output: { format: "webp", maxWidth: 1920, maxHeight: 1920 },
   },
   slide: {
     folder: "slides",
-    admin: true,
+    need: "homepage",
     output: { format: "webp", maxWidth: 2400, maxHeight: 2400 },
   },
   photo: {
     folder: "photos",
-    admin: true,
+    need: "homepage",
     output: { format: "webp", maxWidth: 2400, maxHeight: 2400 },
   },
   share: {
     folder: "photos",
-    admin: true,
+    need: "homepage",
     output: { format: "jpeg", maxWidth: 1200, maxHeight: 1200 },
   },
-  logo: { folder: "logos", admin: true, output: { format: "png", maxWidth: 1600, maxHeight: 800 } },
-  icon: { folder: "icons", admin: true, output: { format: "png", maxWidth: 512, maxHeight: 512 } },
+  logo: {
+    folder: "logos",
+    need: "homepage",
+    output: { format: "png", maxWidth: 1600, maxHeight: 800 },
+  },
+  icon: {
+    folder: "icons",
+    need: "homepage",
+    output: { format: "png", maxWidth: 512, maxHeight: 512 },
+  },
 };
 
 function reply(status: number, error: string) {
@@ -62,7 +71,7 @@ export async function POST(request: NextRequest) {
   const config = KINDS[kind];
   if (!config) return reply(400, "Unknown upload type.");
 
-  const auth = await checkStaff(config.admin ? "admin" : undefined);
+  const auth = await checkStaff(config.need);
   if ("error" in auth)
     return reply(auth.error, "You don't have permission to upload. Sign in again.");
   const { staff } = auth;

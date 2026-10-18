@@ -2,16 +2,17 @@ import type { Metadata } from "next";
 
 import { BrandImages } from "@/components/staff/homepage/brand-images";
 import { CarouselSettingsForm } from "@/components/staff/homepage/carousel-settings-form";
+import { HomepageSectionsForm } from "@/components/staff/homepage/homepage-sections-form";
 import { SlidesSection } from "@/components/staff/homepage/slides-section";
 import { slideStatus, type AdminSlide } from "@/components/staff/homepage/types";
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { siteImageUrl } from "@/lib/site-images";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Homepage" };
 
 export default async function HomepageEditorPage() {
-  await requireAdmin();
+  await requirePermission("homepage");
   const supabase = await createClient();
   const [{ data: slides, error }, { data: s, error: settingsError }] = await Promise.all([
     supabase.from("hero_slides").select("*").order("sort_order").order("created_at"),
@@ -27,23 +28,33 @@ export default async function HomepageEditorPage() {
     status: slideStatus(slide),
   }));
 
-  const eyebrow = `${s.dealership_name} · ${s.city ?? "your area"}`;
-
   return (
     <div className="mx-auto max-w-5xl space-y-10 pb-28">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Homepage</h1>
         <p className="text-sm text-muted-foreground">
-          Hero slides, logo and site images. Previews show how the public site will look.
+          Hero slides, homepage sections, logo and site images. Previews show how the public site
+          will look.
         </p>
       </div>
 
-      <SlidesSection slides={adminSlides} eyebrow={eyebrow} />
+      <SlidesSection slides={adminSlides} />
 
       <CarouselSettingsForm
         initial={{
           hero_autoplay: s.hero_autoplay,
           hero_interval_seconds: s.hero_interval_seconds,
+        }}
+      />
+
+      <HomepageSectionsForm
+        initial={{
+          home_welcome_subheading: s.home_welcome_subheading,
+          tile_inventory_label: s.tile_inventory_label,
+          tile_finder_label: s.tile_finder_label,
+          tile_visit_label: s.tile_visit_label,
+          tile_call_label: s.tile_call_label,
+          show_featured_on_home: s.show_featured_on_home,
         }}
       />
 

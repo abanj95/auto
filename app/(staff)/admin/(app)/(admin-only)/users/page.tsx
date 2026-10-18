@@ -5,6 +5,7 @@ import { InviteDialog } from "@/components/staff/users/invite-dialog";
 import { UserActionsMenu } from "@/components/staff/users/user-actions-menu";
 import { requireAdmin } from "@/lib/auth";
 import { lastSeen } from "@/lib/format";
+import { PERMISSION_KEYS, PERMISSIONS } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,9 @@ export default async function UsersPage() {
   // Auth users (email, sign-in times) need the admin API; profiles come through RLS.
   const [{ data: authData, error: authError }, { data: profiles, error }] = await Promise.all([
     createAdminClient().auth.admin.listUsers({ perPage: 1000 }),
-    (await createClient()).from("profiles").select("id, full_name, role, active, created_at"),
+    (await createClient())
+      .from("profiles")
+      .select("id, full_name, role, active, permissions, created_at"),
   ]);
   if (authError) throw authError;
   if (error) throw error;
@@ -33,6 +36,7 @@ export default async function UsersPage() {
         role: p.role,
         active: p.active,
         invited: !!u && !u.email_confirmed_at,
+        permissions: p.permissions,
         lastSignIn: u?.last_sign_in_at ?? null,
       };
     })
@@ -85,6 +89,12 @@ export default async function UsersPage() {
                 ) : (
                   <Pill className="bg-emerald-50 text-emerald-800">Active</Pill>
                 )}
+                {u.role === "poster" &&
+                  PERMISSION_KEYS.filter((k) => u.permissions.includes(k)).map((k) => (
+                    <Pill key={k} className="bg-amber-50 text-amber-900">
+                      {PERMISSIONS[k].label}
+                    </Pill>
+                  ))}
                 <span className="text-muted-foreground">
                   · {u.invited ? "Hasn't accepted yet" : `Last sign-in ${lastSeen(u.lastSignIn)}`}
                 </span>

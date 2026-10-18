@@ -9,7 +9,7 @@ import {
   createSlide,
   discardUpload,
   updateSlide,
-} from "@/app/(staff)/admin/(app)/(admin-only)/homepage/actions";
+} from "@/app/(staff)/admin/(app)/homepage/actions";
 import { HeroSlide } from "@/components/public/hero-slide";
 import { ScaledPreview } from "@/components/staff/homepage/scaled-preview";
 import { uploadSiteImage } from "@/components/staff/homepage/site-image-upload";
@@ -32,7 +32,6 @@ import {
   FOCAL_POINTS,
   OVERLAYS,
   slideSchema,
-  TEXT_POSITIONS,
   type FocalPoint,
   type Overlay,
   type SlideFormValues,
@@ -83,13 +82,11 @@ export function SlideDialog({
   open,
   onOpenChange,
   slide,
-  eyebrow,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** null = new slide. */
   slide: AdminSlide | null;
-  eyebrow: string;
 }) {
   const form = useForm<SlideFormValues>({ defaultValues: initialValues(slide) });
   const { register, control, setValue, formState } = form;
@@ -221,23 +218,13 @@ export function SlideDialog({
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Computer</p>
                   <ScaledPreview width={1280} height={600} className="rounded-lg">
-                    <HeroSlide
-                      slide={previewSlide}
-                      eyebrow={eyebrow}
-                      preview="desktop"
-                      className="size-full"
-                    />
+                    <HeroSlide slide={previewSlide} preview="desktop" className="size-full" />
                   </ScaledPreview>
                 </div>
                 <div className="hidden space-y-1 sm:block">
                   <p className="text-xs font-medium text-muted-foreground">Phone</p>
                   <ScaledPreview width={360} height={480} className="rounded-lg">
-                    <HeroSlide
-                      slide={previewSlide}
-                      eyebrow={eyebrow}
-                      preview="phone"
-                      className="size-full"
-                    />
+                    <HeroSlide slide={previewSlide} preview="phone" className="size-full" />
                   </ScaledPreview>
                 </div>
               </div>
@@ -408,21 +395,10 @@ export function SlideDialog({
             </Field>
           </div>
 
+          {/* Text is always in a centered box; text_position is kept in the DB but unused. */}
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <p className="text-sm font-medium">Text position</p>
-              <ChoiceChips
-                label="Text position"
-                allowDeselect={false}
-                options={Object.entries(TEXT_POSITIONS).map(([value, label]) => ({ value, label }))}
-                value={values.text_position}
-                onChange={(v) =>
-                  setValue("text_position", v as TextPosition, { shouldDirty: true })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Overlay (keeps text readable)</p>
+              <p className="text-sm font-medium">Image tint</p>
               <ChoiceChips
                 label="Overlay"
                 allowDeselect={false}

@@ -4,10 +4,7 @@ import { ImageOff, ImagePlus, Loader2, TriangleAlert, Upload } from "lucide-reac
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  discardUpload,
-  setBrandImage,
-} from "@/app/(staff)/admin/(app)/(admin-only)/homepage/actions";
+import { discardUpload, setBrandImage } from "@/app/(staff)/admin/(app)/homepage/actions";
 import { ConfirmDialog } from "@/components/staff/confirm-dialog";
 import { uploadSiteImage } from "@/components/staff/homepage/site-image-upload";
 import { Button } from "@/components/ui/button";
