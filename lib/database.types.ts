@@ -4,7 +4,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5";
+    PostgrestVersion: "14.17";
   };
   public: {
     Tables: {
@@ -122,6 +122,7 @@ export type Database = {
           created_at: string;
           full_name: string | null;
           id: string;
+          permissions: string[];
           role: Database["public"]["Enums"]["user_role"];
         };
         Insert: {
@@ -129,6 +130,7 @@ export type Database = {
           created_at?: string;
           full_name?: string | null;
           id: string;
+          permissions?: string[];
           role?: Database["public"]["Enums"]["user_role"];
         };
         Update: {
@@ -136,6 +138,7 @@ export type Database = {
           created_at?: string;
           full_name?: string | null;
           id?: string;
+          permissions?: string[];
           role?: Database["public"]["Enums"]["user_role"];
         };
         Relationships: [];
@@ -150,9 +153,11 @@ export type Database = {
           email: string | null;
           facebook_url: string | null;
           favicon_path: string | null;
+          finder_intro: string;
           google_maps_url: string | null;
           hero_autoplay: boolean;
           hero_interval_seconds: number;
+          home_welcome_subheading: string;
           hours: Json;
           id: boolean;
           logo_dark_path: string | null;
@@ -160,8 +165,17 @@ export type Database = {
           og_default_image_path: string | null;
           phone: string | null;
           price_disclaimer: string;
+          privacy_md: string;
+          privacy_updated_at: string;
+          show_featured_on_home: boolean;
           sms_phone: string | null;
           state: string | null;
+          terms_md: string;
+          terms_updated_at: string;
+          tile_call_label: string;
+          tile_finder_label: string;
+          tile_inventory_label: string;
+          tile_visit_label: string;
           zip: string | null;
         };
         Insert: {
@@ -173,9 +187,11 @@ export type Database = {
           email?: string | null;
           facebook_url?: string | null;
           favicon_path?: string | null;
+          finder_intro?: string;
           google_maps_url?: string | null;
           hero_autoplay?: boolean;
           hero_interval_seconds?: number;
+          home_welcome_subheading?: string;
           hours?: Json;
           id?: boolean;
           logo_dark_path?: string | null;
@@ -183,8 +199,17 @@ export type Database = {
           og_default_image_path?: string | null;
           phone?: string | null;
           price_disclaimer?: string;
+          privacy_md?: string;
+          privacy_updated_at?: string;
+          show_featured_on_home?: boolean;
           sms_phone?: string | null;
           state?: string | null;
+          terms_md?: string;
+          terms_updated_at?: string;
+          tile_call_label?: string;
+          tile_finder_label?: string;
+          tile_inventory_label?: string;
+          tile_visit_label?: string;
           zip?: string | null;
         };
         Update: {
@@ -196,9 +221,11 @@ export type Database = {
           email?: string | null;
           facebook_url?: string | null;
           favicon_path?: string | null;
+          finder_intro?: string;
           google_maps_url?: string | null;
           hero_autoplay?: boolean;
           hero_interval_seconds?: number;
+          home_welcome_subheading?: string;
           hours?: Json;
           id?: boolean;
           logo_dark_path?: string | null;
@@ -206,8 +233,17 @@ export type Database = {
           og_default_image_path?: string | null;
           phone?: string | null;
           price_disclaimer?: string;
+          privacy_md?: string;
+          privacy_updated_at?: string;
+          show_featured_on_home?: boolean;
           sms_phone?: string | null;
           state?: string | null;
+          terms_md?: string;
+          terms_updated_at?: string;
+          tile_call_label?: string;
+          tile_finder_label?: string;
+          tile_inventory_label?: string;
+          tile_visit_label?: string;
           zip?: string | null;
         };
         Relationships: [];
@@ -249,6 +285,90 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      vehicle_requests: {
+        Row: {
+          admin_notes: string | null;
+          best_time: string | null;
+          body_type: Database["public"]["Enums"]["vehicle_body_type"] | null;
+          budget_max: number | null;
+          budget_min: number | null;
+          closed_at: string | null;
+          consent: boolean;
+          created_at: string;
+          email: string;
+          engine: string | null;
+          first_name: string;
+          id: string;
+          ip_hash: string | null;
+          last_name: string;
+          make: string | null;
+          max_mileage: number | null;
+          model: string | null;
+          notes: string | null;
+          phone: string;
+          phone2: string | null;
+          preferred_contact: string | null;
+          status: Database["public"]["Enums"]["vehicle_request_status"];
+          updated_at: string;
+          year_from: number | null;
+          year_to: number | null;
+        };
+        Insert: {
+          admin_notes?: string | null;
+          best_time?: string | null;
+          body_type?: Database["public"]["Enums"]["vehicle_body_type"] | null;
+          budget_max?: number | null;
+          budget_min?: number | null;
+          closed_at?: string | null;
+          consent: boolean;
+          created_at?: string;
+          email: string;
+          engine?: string | null;
+          first_name: string;
+          id?: string;
+          ip_hash?: string | null;
+          last_name: string;
+          make?: string | null;
+          max_mileage?: number | null;
+          model?: string | null;
+          notes?: string | null;
+          phone: string;
+          phone2?: string | null;
+          preferred_contact?: string | null;
+          status?: Database["public"]["Enums"]["vehicle_request_status"];
+          updated_at?: string;
+          year_from?: number | null;
+          year_to?: number | null;
+        };
+        Update: {
+          admin_notes?: string | null;
+          best_time?: string | null;
+          body_type?: Database["public"]["Enums"]["vehicle_body_type"] | null;
+          budget_max?: number | null;
+          budget_min?: number | null;
+          closed_at?: string | null;
+          consent?: boolean;
+          created_at?: string;
+          email?: string;
+          engine?: string | null;
+          first_name?: string;
+          id?: string;
+          ip_hash?: string | null;
+          last_name?: string;
+          make?: string | null;
+          max_mileage?: number | null;
+          model?: string | null;
+          notes?: string | null;
+          phone?: string;
+          phone2?: string | null;
+          preferred_contact?: string | null;
+          status?: Database["public"]["Enums"]["vehicle_request_status"];
+          updated_at?: string;
+          year_from?: number | null;
+          year_to?: number | null;
+        };
+        Relationships: [];
       };
       vehicles: {
         Row: {
@@ -398,6 +518,7 @@ export type Database = {
         | "other";
       vehicle_drivetrain: "fwd" | "rwd" | "awd" | "4wd";
       vehicle_fuel_type: "gas" | "diesel" | "hybrid" | "electric" | "other";
+      vehicle_request_status: "new" | "contacted" | "found" | "closed";
       vehicle_status: "draft" | "available" | "pending" | "sold";
       vehicle_title_status: "clean" | "rebuilt" | "salvage" | "other";
       vehicle_transmission: "automatic" | "manual" | "cvt";
@@ -536,6 +657,7 @@ export const Constants = {
       ],
       vehicle_drivetrain: ["fwd", "rwd", "awd", "4wd"],
       vehicle_fuel_type: ["gas", "diesel", "hybrid", "electric", "other"],
+      vehicle_request_status: ["new", "contacted", "found", "closed"],
       vehicle_status: ["draft", "available", "pending", "sold"],
       vehicle_title_status: ["clean", "rebuilt", "salvage", "other"],
       vehicle_transmission: ["automatic", "manual", "cvt"],
